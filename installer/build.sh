@@ -2,6 +2,7 @@
 
 mkdir -p ROOT/tmp/EFLensController_X2/
 cp "../EFLensController.ui" ROOT/tmp/EFLensController_X2/
+cp "../lens.txt" ROOT/tmp/EFLensController_X2/
 cp "../focuserlist EFLensController.txt" ROOT/tmp/EFLensController_X2/
 cp "../build/Release/libEFLensController.dylib" ROOT/tmp/EFLensController_X2/
 

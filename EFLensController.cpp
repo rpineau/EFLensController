@@ -57,6 +57,7 @@ CEFLensController::CEFLensController()
     fflush(Logfile);
 #endif
 
+	loadLensDef();
 }
 
 CEFLensController::~CEFLensController()
@@ -360,3 +361,85 @@ int CEFLensController::parseFields(const char *pszIn, std::vector<std::string> &
     }
     return nErr;
 }
+
+int CEFLensController::loadLensDef()
+{
+	int nErr = EFCTL_OK;
+	std::string line;
+	std::string sCWD;
+	std::vector<std::string> lensEntry;
+	std::vector<std::string> lensFRatios;
+	tLensDefnition tLens;
+	
+	sCWD = GetCurrentWorkingDir();
+	
+#if defined EFCTL_DEBUG && EFCTL_DEBUG >= 2
+	ltime = time(NULL);
+	timestamp = asctime(localtime(&ltime));
+	timestamp[strlen(timestamp) - 1] = 0;
+	fprintf(Logfile, "[%s] [CEFLensController::loadLensDef] loading lens definition.\n", timestamp);
+	fprintf(Logfile, "[%s] [CEFLensController::loadLensDef] sCWD = '%s'\n", timestamp, sCWD.c_str());
+	fflush(Logfile);
+#endif
+
+	m_fLensDef.open("lens.txt");
+	if(!m_fLensDef.is_open()) {
+#if defined EFCTL_DEBUG && EFCTL_DEBUG >= 2
+		ltime = time(NULL);
+		timestamp = asctime(localtime(&ltime));
+		timestamp[strlen(timestamp) - 1] = 0;
+		fprintf(Logfile, "[%s] [CEFLensController::loadLensDef] ERROR lens definition file not found.\n", timestamp);
+		fflush(Logfile);
+#endif
+		return ERR_OPENINGFILE;
+	}
+	
+	while (m_fLensDef) {
+		// Read a Line from File
+		getline(m_fLensDef, line);
+#ifdef EFCTL_DEBUG
+		ltime = time(NULL);
+		timestamp = asctime(localtime(&ltime));
+		timestamp[strlen(timestamp) - 1] = 0;
+		fprintf(Logfile, "[%s] CEFLensController::loadLensDef line : '%s'\n", timestamp, line.c_str());
+		fflush(Logfile);
+#endif
+		// parse it
+		parseFields(line.c_str(), lensEntry, '|');
+		tLens.lensName = trim(lensEntry[0]," ");
+		parseFields(trim(lensEntry[1], " ").c_str(), lensFRatios, ' ');
+		tLens.fRatios = lensFRatios;
+		// append line to vector
+		m_LensDefintions.push_back(tLens);
+	}
+	
+	// Close the file
+	m_fLensDef.close();
+	
+	return nErr;
+}
+
+std::string CEFLensController::GetCurrentWorkingDir( void ) {
+	char buff[FILENAME_MAX];
+	GetCurrentDir( buff, FILENAME_MAX );
+	std::string current_working_dir(buff);
+	return current_working_dir;
+}
+
+std::string& CEFLensController::trim(std::string &str, const std::string& filter )
+{
+	return ltrim(rtrim(str, filter), filter);
+}
+
+std::string& CEFLensController::ltrim(std::string& str, const std::string& filter)
+{
+	str.erase(0, str.find_first_not_of(filter));
+	return str;
+}
+
+std::string& CEFLensController::rtrim(std::string& str, const std::string& filter)
+{
+	str.erase(str.find_last_not_of(filter) + 1);
+	return str;
+}
+

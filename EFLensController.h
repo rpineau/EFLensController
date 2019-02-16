@@ -9,10 +9,22 @@
 #define __EFCTL__
 #include <math.h>
 #include <string.h>
+
+#include <stdio.h>  /* defines FILENAME_MAX */
+// #define WINDOWS  /* uncomment this line to use it for windows.*/
+#ifdef WINDOWS
+#include <direct.h>
+#define GetCurrentDir _getcwd
+#else
+#include <unistd.h>
+#define GetCurrentDir getcwd
+#endif
+
 #include <string>
 #include <vector>
 #include <sstream>
 #include <iostream>
+#include <fstream>
 
 #include <exception>
 #include <typeinfo>
@@ -32,6 +44,11 @@
 enum EFCTL_Errors    {EFCTL_OK = 0, NOT_CONNECTED, ND_CANT_CONNECT, EFCTL_BAD_CMD_RESPONSE, COMMAND_FAILED};
 enum MotorDir       {NORMAL = 0 , REVERSE};
 enum MotorStatus    {IDLE = 0, MOVING};
+
+typedef struct lensesDefinitions {
+	std::string lensName;
+	std::vector<std::string> fRatios;
+} tLensDefnition;
 
 
 class CEFLensController
@@ -68,7 +85,9 @@ protected:
     int             cEFCtlCommand(const char *pszCmd, char *pszResult, int nResultMaxLen);
     int             readResponse(char *pszRespBuffer, int nBufferLen);
     int             parseFields(const char *pszIn, std::vector<std::string> &svFields, const char &cSeparator);
-
+	int				loadLensDef();
+	std::string		GetCurrentWorkingDir( void );
+	
     SerXInterface   *m_pSerx;
 
     bool            m_bDebugLog;
@@ -81,6 +100,12 @@ protected:
     int             m_nPosLimit;
     bool            m_bPosLimitEnabled;
     int             m_nCurrentApperture;
+	
+	std::ifstream 	m_fLensDef;
+	std::vector<tLensDefnition>	m_LensDefintions;
+	std::string&    trim(std::string &str, const std::string &filter );
+	std::string&    ltrim(std::string &str, const std::string &filter);
+	std::string&    rtrim(std::string &str, const std::string &filter);
 
 #ifdef EFCTL_DEBUG
     std::string m_sLogfilePath;
