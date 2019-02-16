@@ -19,13 +19,10 @@
 #endif
 
 
-cEFLensController::cEFLensController()
+CEFLensController::CEFLensController()
 {
 
     m_pSerx = NULL;
-    m_pLogger = NULL;
-
-
     m_bDebugLog = false;
     m_bIsConnected = false;
 
@@ -33,8 +30,8 @@ cEFLensController::cEFLensController()
     m_nTargetPos = 0;
     m_nPosLimit = 0;
     m_bPosLimitEnabled = 0;
-    m_bMoving = false;
-
+    m_nCurrentApperture = 0;
+    
 
 #ifdef EFCTL_DEBUG
 #if defined(SB_WIN_BUILD)
@@ -55,14 +52,14 @@ cEFLensController::cEFLensController()
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
     timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [cEFLensController::cEFLensController] Version 2019_02_15_1100.\n", timestamp);
-    fprintf(Logfile, "[%s] [cEFLensController::cEFLensController] Constructor Called.\n", timestamp);
+    fprintf(Logfile, "[%s] [CEFLensController::CEFLensController] Version 2019_02_16_1200.\n", timestamp);
+    fprintf(Logfile, "[%s] [CEFLensController::CEFLensController] Constructor Called.\n", timestamp);
     fflush(Logfile);
 #endif
 
 }
 
-cEFLensController::~cEFLensController()
+CEFLensController::~CEFLensController()
 {
 #ifdef	EFCTL_DEBUG
     // Close LogFile
@@ -70,10 +67,9 @@ cEFLensController::~cEFLensController()
 #endif
 }
 
-int cEFLensController::Connect(const char *pszPort)
+int CEFLensController::Connect(const char *pszPort)
 {
     int nErr = EFCTL_OK;
-    int nStatus;
 
     if(!m_pSerx)
         return ERR_COMMNOLINK;
@@ -82,12 +78,11 @@ int cEFLensController::Connect(const char *pszPort)
 	ltime = time(NULL);
 	timestamp = asctime(localtime(&ltime));
 	timestamp[strlen(timestamp) - 1] = 0;
-	fprintf(Logfile, "[%s] cEFLensController::Connect Called %s\n", timestamp, pszPort);
+	fprintf(Logfile, "[%s] CEFLensController::Connect Called %s\n", timestamp, pszPort);
 	fflush(Logfile);
 #endif
 
-    // 19200 8N1
-    nErr = m_pSerx->open(pszPort, 9600, SerXInterface::B_NOPARITY, "-DTR_CONTROL 1");
+    nErr = m_pSerx->open(pszPort, 38400, SerXInterface::B_NOPARITY, "-DTR_CONTROL 1");
     if( nErr == 0)
         m_bIsConnected = true;
     else
@@ -96,49 +91,18 @@ int cEFLensController::Connect(const char *pszPort)
     if(!m_bIsConnected)
         return nErr;
 
-    m_pSleeper->sleep(2000);
-
 #ifdef EFCTL_DEBUG
 	ltime = time(NULL);
 	timestamp = asctime(localtime(&ltime));
 	timestamp[strlen(timestamp) - 1] = 0;
-	fprintf(Logfile, "[%s] cEFLensController::Connect connected to %s\n", timestamp, pszPort);
+	fprintf(Logfile, "[%s] CEFLensController::Connect connected to %s\n", timestamp, pszPort);
 	fflush(Logfile);
 #endif
 	
-    if (m_bDebugLog && m_pLogger) {
-        snprintf(m_szLogBuffer,LOG_BUFFER_SIZE,"[cEFLensController::Connect] Connected.\n");
-        m_pLogger->out(m_szLogBuffer);
-
-        snprintf(m_szLogBuffer,LOG_BUFFER_SIZE,"[cEFLensController::Connect] Getting Firmware.\n");
-        m_pLogger->out(m_szLogBuffer);
-    }
-
-    // get status so we can figure out what device we are connecting to.
-#ifdef EFCTL_DEBUG
-	ltime = time(NULL);
-	timestamp = asctime(localtime(&ltime));
-	timestamp[strlen(timestamp) - 1] = 0;
-	fprintf(Logfile, "[%s] cEFLensController::Connect getting device status\n", timestamp);
-	fflush(Logfile);
-#endif
-    nErr = getDeviceStatus(nStatus);
-    if(nErr) {
-		m_bIsConnected = false;
-#ifdef EFCTL_DEBUG
-		ltime = time(NULL);
-		timestamp = asctime(localtime(&ltime));
-		timestamp[strlen(timestamp) - 1] = 0;
-		fprintf(Logfile, "[%s] cEFLensController::Connect **** ERROR **** getting device status\n", timestamp);
-		fflush(Logfile);
-#endif
-        return nErr;
-    }
-    // m_globalStatus.deviceType now contains the device type
     return nErr;
 }
 
-void cEFLensController::Disconnect()
+void CEFLensController::Disconnect()
 {
     if(m_bIsConnected && m_pSerx)
         m_pSerx->close();
@@ -147,32 +111,10 @@ void cEFLensController::Disconnect()
 }
 
 #pragma mark move commands
-int cEFLensController::haltFocuser()
-{
-    int nErr;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szTmpBuf[SERIAL_BUFFER_SIZE];
-
-	if(!m_bIsConnected)
-		return ERR_COMMNOLINK;
-
-    nErr = cEFCtlCommand("H#", szResp, SERIAL_BUFFER_SIZE);
-    if(nErr)
-        return nErr;
-    // parse output to update m_curPos
-    parseResponse(szResp, szTmpBuf, SERIAL_BUFFER_SIZE);
-    m_nCurPos = atoi(szTmpBuf);
-    m_nTargetPos = m_nCurPos;
-
-    return nErr;
-}
-
-int cEFLensController::gotoPosition(int nPos)
+int CEFLensController::gotoPosition(int nPos)
 {
     int nErr;
     char szCmd[SERIAL_BUFFER_SIZE];
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szTmpBuf[SERIAL_BUFFER_SIZE];
 
 	if(!m_bIsConnected)
 		return ERR_COMMNOLINK;
@@ -185,24 +127,19 @@ int cEFLensController::gotoPosition(int nPos)
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
     timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] cEFLensController::gotoPosition goto position  : %d\n", timestamp, nPos);
+    fprintf(Logfile, "[%s] CEFLensController::gotoPosition goto position  : %d\n", timestamp, nPos);
     fflush(Logfile);
 #endif
 
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, "T%d#", nPos);
-    nErr = cEFCtlCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
+    snprintf(szCmd, SERIAL_BUFFER_SIZE, "M%d#", nPos);
+    nErr = cEFCtlCommand(szCmd, NULL, SERIAL_BUFFER_SIZE);
     if(nErr)
         return nErr;
-    if(!strstr(szResp,"OK"))
-        return ERR_CMDFAILED;
-
-    nErr = parseResponse(szResp, szTmpBuf, SERIAL_BUFFER_SIZE);
-    m_nTargetPos = atoi(szTmpBuf);
-
+    m_nTargetPos = nPos;
     return nErr;
 }
 
-int cEFLensController::moveRelativeToPosision(int nSteps)
+int CEFLensController::moveRelativeToPosision(int nSteps)
 {
     int nErr;
 
@@ -213,7 +150,7 @@ int cEFLensController::moveRelativeToPosision(int nSteps)
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
     timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] cEFLensController::gotoPosition goto relative position  : %d\n", timestamp, nSteps);
+    fprintf(Logfile, "[%s] CEFLensController::gotoPosition goto relative position  : %d\n", timestamp, nSteps);
     fflush(Logfile);
 #endif
 
@@ -224,7 +161,7 @@ int cEFLensController::moveRelativeToPosision(int nSteps)
 
 #pragma mark command complete functions
 
-int cEFLensController::isGoToComplete(bool &bComplete)
+int CEFLensController::isGoToComplete(bool &bComplete)
 {
     int nErr = EFCTL_OK;
 	
@@ -239,108 +176,12 @@ int cEFLensController::isGoToComplete(bool &bComplete)
     return nErr;
 }
 
-int cEFLensController::isMotorMoving(bool &bMoving)
-{
-    int nErr = EFCTL_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-	
-	if(!m_bIsConnected)
-		return ERR_COMMNOLINK;
-
-    nErr = cEFCtlCommand("M#", szResp, SERIAL_BUFFER_SIZE);
-    if(nErr)
-        return nErr;
-    if(strstr(szResp,"OK")) { // positive response, check M value
-        if(strstr(szResp,"M0")) {
-            bMoving = false;
-        }
-        else if (strstr(szResp,"M1")) {
-            bMoving = true;
-        }
-        else
-            nErr = ERR_CMDFAILED;
-    }
-
-    return nErr;
-}
-
 #pragma mark getters and setters
-int cEFLensController::getDeviceStatus(int &nStatus)
-{
-    int nErr;
-    char szResp[SERIAL_BUFFER_SIZE];
-	
-	if(!m_bIsConnected)
-		return ERR_COMMNOLINK;
-	
-
-    nErr = cEFCtlCommand("#", szResp, SERIAL_BUFFER_SIZE);
-    if(nErr)
-        return nErr;
-
-    if(strstr(szResp,"OK")) {
-        nStatus = EFCTL_OK;
-        nErr = EFCTL_OK;
-    }
-    else {
-        nStatus = COMMAND_FAILED;
-        nErr = ERR_CMDFAILED;
-    }
-    return nErr;
-}
-
-int cEFLensController::getFirmwareVersion(char *pszVersion, int nStrMaxLen)
+int CEFLensController::getPosition(int &nPosition)
 {
     int nErr = EFCTL_OK;
     char szResp[SERIAL_BUFFER_SIZE];
-	
-	if(!m_bIsConnected)
-		return ERR_COMMNOLINK;
-
-    if(!m_bIsConnected)
-        return NOT_CONNECTED;
-
-    nErr = cEFCtlCommand("V#", szResp, SERIAL_BUFFER_SIZE);
-    if(nErr)
-        return nErr;
-#ifdef EFCTL_DEBUG
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] cEFLensController::getFirmwareVersion szResp : %s\n", timestamp, szResp);
-    fflush(Logfile);
-#endif
-
-    strncpy(pszVersion, szResp, nStrMaxLen);
-    return nErr;
-}
-
-int cEFLensController::getTemperature(double &dTemperature)
-{
-    int nErr = EFCTL_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szTmpBuf[SERIAL_BUFFER_SIZE];
-
-	if(!m_bIsConnected)
-		return ERR_COMMNOLINK;
-
-    nErr = cEFCtlCommand("C#", szResp, SERIAL_BUFFER_SIZE);
-    if(nErr)
-        return nErr;
-
-    // parse output to extract temp value.
-    nErr = parseResponse(szResp, szTmpBuf, SERIAL_BUFFER_SIZE);
-    // convert string value to double
-    dTemperature = atof(szTmpBuf);
-
-    return nErr;
-}
-
-int cEFLensController::getPosition(int &nPosition)
-{
-    int nErr = EFCTL_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-    char szTmpBuf[SERIAL_BUFFER_SIZE];
+    std::vector<std::string> vFieldsData;
 
 	if(!m_bIsConnected)
 		return ERR_COMMNOLINK;
@@ -350,65 +191,70 @@ int cEFLensController::getPosition(int &nPosition)
         return nErr;
 
     // parse output to extract position value.
-    nErr = parseResponse(szResp, szTmpBuf, SERIAL_BUFFER_SIZE);
+    nErr = parseFields(szResp, vFieldsData, 'P');
     // convert response
-    nPosition = atoi(szTmpBuf);
-    m_nCurPos = nPosition;
+    if(vFieldsData.size()) {
+        nPosition = std::stoi(vFieldsData[0]);
+        m_nCurPos = nPosition;
+    }
 
     return nErr;
 }
 
-
-int cEFLensController::syncMotorPosition(int nPos)
-{
-    int nErr = EFCTL_OK;
-    char szCmd[SERIAL_BUFFER_SIZE];
-    char szResp[SERIAL_BUFFER_SIZE];
-
-	if(!m_bIsConnected)
-		return ERR_COMMNOLINK;
-
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, "I%d#", nPos);
-    printf("setting new pos to %d [ %s ]\n",nPos, szCmd);
-    
-    nErr = cEFCtlCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
-    printf("[syncMotorPosition] szResp = %s\n", szResp);
-    if(nErr)
-        return nErr;
-
-    if(!strstr(szResp,"OK"))
-        nErr = ERR_CMDFAILED;
-    m_nCurPos = nPos;
-    return nErr;
-}
-
-
-
-int cEFLensController::getPosLimit()
+int CEFLensController::getPosLimit()
 {
     return m_nPosLimit;
 }
 
-void cEFLensController::setPosLimit(int nLimit)
+void CEFLensController::setPosLimit(int nLimit)
 {
     m_nPosLimit = nLimit;
 }
 
-bool cEFLensController::isPosLimitEnabled()
+bool CEFLensController::isPosLimitEnabled()
 {
     return m_bPosLimitEnabled;
 }
 
-void cEFLensController::enablePosLimit(bool bEnable)
+void CEFLensController::enablePosLimit(bool bEnable)
 {
     m_bPosLimitEnabled = bEnable;
 }
 
 
+int CEFLensController::setApperture(int &nAppeture)
+{
+    int nErr;
+    char szCmd[SERIAL_BUFFER_SIZE];
+
+    if(!m_bIsConnected)
+        return ERR_COMMNOLINK;
+
+
+#ifdef EFCTL_DEBUG
+    ltime = time(NULL);
+    timestamp = asctime(localtime(&ltime));
+    timestamp[strlen(timestamp) - 1] = 0;
+    fprintf(Logfile, "[%s] CEFLensController::setApperture new apperture  : %d\n", timestamp, nAppeture);
+    fflush(Logfile);
+#endif
+
+    snprintf(szCmd, SERIAL_BUFFER_SIZE, "A%d#", nAppeture);
+    nErr = cEFCtlCommand(szCmd, NULL, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+    m_nCurrentApperture = nAppeture;
+    return nErr;
+}
+
+int CEFLensController::getApperture(void)
+{
+    return m_nCurrentApperture;
+}
 
 #pragma mark command and response functions
 
-int cEFLensController::cEFCtlCommand(const char *pszszCmd, char *pszResult, int nResultMaxLen)
+int CEFLensController::cEFCtlCommand(const char *pszszCmd, char *pszResult, int nResultMaxLen)
 {
     int nErr = EFCTL_OK;
     char szResp[SERIAL_BUFFER_SIZE];
@@ -418,46 +264,28 @@ int cEFLensController::cEFCtlCommand(const char *pszszCmd, char *pszResult, int 
 		return ERR_COMMNOLINK;
 
     m_pSerx->purgeTxRx();
-    if (m_bDebugLog && m_pLogger) {
-        snprintf(m_szLogBuffer,LOG_BUFFER_SIZE,"[cEFLensController::cEFCtlCommand] Sending %s\n",pszszCmd);
-        m_pLogger->out(m_szLogBuffer);
-    }
 #ifdef EFCTL_DEBUG
 	ltime = time(NULL);
 	timestamp = asctime(localtime(&ltime));
 	timestamp[strlen(timestamp) - 1] = 0;
-	fprintf(Logfile, "[%s] cEFLensController::cEFCtlCommand Sending %s\n", timestamp, pszszCmd);
+	fprintf(Logfile, "[%s] CEFLensController::cEFCtlCommand Sending %s\n", timestamp, pszszCmd);
 	fflush(Logfile);
 #endif
     nErr = m_pSerx->writeFile((void *)pszszCmd, strlen(pszszCmd), ulBytesWrite);
     m_pSerx->flushTx();
 
     if(nErr){
-        if (m_bDebugLog && m_pLogger) {
-            snprintf(m_szLogBuffer,LOG_BUFFER_SIZE,"[cEFLensController::cEFCtlCommand] writeFile Error.\n");
-            m_pLogger->out(m_szLogBuffer);
-        }
         return nErr;
     }
 
     if(pszResult) {
         // read response
-        if (m_bDebugLog && m_pLogger) {
-            snprintf(m_szLogBuffer,LOG_BUFFER_SIZE,"[cEFLensController::cEFCtlCommand] Getting response.\n");
-            m_pLogger->out(m_szLogBuffer);
-        }
         nErr = readResponse(szResp, SERIAL_BUFFER_SIZE);
-        if(nErr){
-            if (m_bDebugLog && m_pLogger) {
-                snprintf(m_szLogBuffer,LOG_BUFFER_SIZE,"[cEFLensController::cEFCtlCommand] readResponse Error.\n");
-                m_pLogger->out(m_szLogBuffer);
-            }
-        }
 #ifdef EFCTL_DEBUG
 		ltime = time(NULL);
 		timestamp = asctime(localtime(&ltime));
 		timestamp[strlen(timestamp) - 1] = 0;
-		fprintf(Logfile, "[%s] cEFLensController::cEFCtlCommand response \"%s\"\n", timestamp, szResp);
+		fprintf(Logfile, "[%s] CEFLensController::cEFCtlCommand response \"%s\"\n", timestamp, szResp);
 		fflush(Logfile);
 #endif
         // printf("Got response : %s\n",resp);
@@ -466,14 +294,14 @@ int cEFLensController::cEFCtlCommand(const char *pszszCmd, char *pszResult, int 
 		ltime = time(NULL);
 		timestamp = asctime(localtime(&ltime));
 		timestamp[strlen(timestamp) - 1] = 0;
-		fprintf(Logfile, "[%s] cEFLensController::cEFCtlCommand response copied to pszResult : \"%s\"\n", timestamp, pszResult);
+		fprintf(Logfile, "[%s] CEFLensController::cEFCtlCommand response copied to pszResult : \"%s\"\n", timestamp, pszResult);
 		fflush(Logfile);
 #endif
     }
     return nErr;
 }
 
-int cEFLensController::readResponse(char *pszRespBuffer, int nBufferLen)
+int CEFLensController::readResponse(char *pszRespBuffer, int nBufferLen)
 {
     int nErr = EFCTL_OK;
     unsigned long ulBytesRead = 0;
@@ -489,33 +317,21 @@ int cEFLensController::readResponse(char *pszRespBuffer, int nBufferLen)
     do {
         nErr = m_pSerx->readFile(pszBufPtr, 1, ulBytesRead, MAX_TIMEOUT);
         if(nErr) {
-            if (m_bDebugLog && m_pLogger) {
-                snprintf(m_szLogBuffer,LOG_BUFFER_SIZE,"[cEFLensController::readResponse] readFile Error.\n");
-                m_pLogger->out(m_szLogBuffer);
-            }
             return nErr;
         }
 
         if (ulBytesRead !=1) {// timeout
-            if (m_bDebugLog && m_pLogger) {
-                snprintf(m_szLogBuffer,LOG_BUFFER_SIZE,"[cEFLensController::readResponse] readFile Timeout.\n");
-                m_pLogger->out(m_szLogBuffer);
-            }
 #ifdef EFCTL_DEBUG
 			ltime = time(NULL);
 			timestamp = asctime(localtime(&ltime));
 			timestamp[strlen(timestamp) - 1] = 0;
-			fprintf(Logfile, "[%s] cEFLensController::readResponse timeout\n", timestamp);
+			fprintf(Logfile, "[%s] CEFLensController::readResponse timeout\n", timestamp);
 			fflush(Logfile);
 #endif
             nErr = ERR_NORESPONSE;
             break;
         }
         ulTotalBytesRead += ulBytesRead;
-        if (m_bDebugLog && m_pLogger) {
-            snprintf(m_szLogBuffer,LOG_BUFFER_SIZE,"[cEFLensController::readResponse] ulBytesRead = %lu\n",ulBytesRead);
-            m_pLogger->out(m_szLogBuffer);
-        }
     } while (*pszBufPtr++ != '#' && ulTotalBytesRead < nBufferLen );
 
     if(ulTotalBytesRead)
@@ -524,32 +340,23 @@ int cEFLensController::readResponse(char *pszRespBuffer, int nBufferLen)
     return nErr;
 }
 
-int cEFLensController::parseResponse(char *pszResp, char *pszParsed, int nBufferLen)
+
+int CEFLensController::parseFields(const char *pszIn, std::vector<std::string> &svFields, const char &cSeparator)
 {
     int nErr = EFCTL_OK;
     std::string sSegment;
-    std::vector<std::string> svSeglist;
-    std::stringstream ssTmp(pszResp);
-    std::vector<std::string>  svParsedResp;
+    std::stringstream ssTmp(pszIn);
 
-#ifdef PEGA_DEBUG
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] CPegasusController::parseResp parsing \"%s\"\n", timestamp, pszResp);
-    fflush(Logfile);
-#endif
-    svParsedResp.clear();
+    svFields.clear();
     // split the string into vector elements
-    while(std::getline(ssTmp, sSegment, ':'))
+    while(std::getline(ssTmp, sSegment, cSeparator))
     {
-        svSeglist.push_back(sSegment);
+        if(sSegment.size())
+            svFields.push_back(sSegment);
     }
-    // do we have all the fields ?
-    if (svSeglist.size()<2)
-        return ERR_CMDFAILED;
 
-    svSeglist[0].erase(0, 1); // erase the first caracter.
-    strncpy(pszParsed, svSeglist[0].c_str(), nBufferLen);
+    if(svFields.size()==0) {
+        nErr = ERR_BADFORMAT;
+    }
     return nErr;
 }

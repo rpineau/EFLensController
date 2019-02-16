@@ -157,7 +157,7 @@ private:
 	bool                                    m_bLinked;
 	int                                     m_nPosition;
     double                                  m_fLastTemp;
-    cEFLensController                       m_Aaf2Controller;
+    CEFLensController                       m_EFLensController;
     bool                                    mUiEnabled;
 };
 

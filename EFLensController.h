@@ -34,52 +34,42 @@ enum MotorDir       {NORMAL = 0 , REVERSE};
 enum MotorStatus    {IDLE = 0, MOVING};
 
 
-class cEFLensController
+class CEFLensController
 {
 public:
-    cEFLensController();
-    ~cEFLensController();
+    CEFLensController();
+    ~CEFLensController();
 
     int         Connect(const char *pszPort);
     void        Disconnect(void);
     bool        IsConnected(void) { return m_bIsConnected; };
 
     void        SetSerxPointer(SerXInterface *p) { m_pSerx = p; };
-    void        setLogger(LoggerInterface *pLogger) { m_pLogger = pLogger; };
-    void        setSleeper(SleeperInterface *pSleeper) { m_pSleeper = pSleeper; };
 
     // move commands
-    int         haltFocuser();
     int         gotoPosition(int nPos);
     int         moveRelativeToPosision(int nSteps);
 
     // command complete functions
     int         isGoToComplete(bool &bComplete);
-    int         isMotorMoving(bool &bMoving);
 
     // getter and setter
-    void        setDebugLog(bool bEnable) {m_bDebugLog = bEnable; };
-
-    int         getDeviceStatus(int &nStatus);
-
-    int         getFirmwareVersion(char *pszVersion, int nStrMaxLen);
-    int         getTemperature(double &dTemperature);
     int         getPosition(int &nPosition);
-    int         syncMotorPosition(int nPos);
     int         getPosLimit(void);
     void        setPosLimit(int nLimit);
     bool        isPosLimitEnabled(void);
     void        enablePosLimit(bool bEnable);
 
+    int         setApperture(int &nAppeture);
+    int         getApperture(void);
+
 protected:
 
     int             cEFCtlCommand(const char *pszCmd, char *pszResult, int nResultMaxLen);
     int             readResponse(char *pszRespBuffer, int nBufferLen);
-    int             parseResponse(char *pszRespBuffer, char *pszParsed, int nBufferLen);
+    int             parseFields(const char *pszIn, std::vector<std::string> &svFields, const char &cSeparator);
 
     SerXInterface   *m_pSerx;
-    LoggerInterface *m_pLogger;
-    SleeperInterface    *m_pSleeper;
 
     bool            m_bDebugLog;
     bool            m_bIsConnected;
@@ -90,7 +80,7 @@ protected:
     int             m_nTargetPos;
     int             m_nPosLimit;
     bool            m_bPosLimitEnabled;
-    bool            m_bMoving;
+    int             m_nCurrentApperture;
 
 #ifdef EFCTL_DEBUG
     std::string m_sLogfilePath;

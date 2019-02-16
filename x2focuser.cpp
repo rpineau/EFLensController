@@ -38,12 +38,8 @@ X2Focuser::X2Focuser(const char* pszDisplayName,
 
     // Read in settings
     if (m_pIniUtil) {
-        m_Aaf2Controller.setPosLimit(m_pIniUtil->readInt(PARENT_KEY, POS_LIMIT, 0));
-        m_Aaf2Controller.enablePosLimit(m_pIniUtil->readInt(PARENT_KEY, POS_LIMIT_ENABLED, false));
     }
-	m_Aaf2Controller.SetSerxPointer(m_pSerX);
-	m_Aaf2Controller.setLogger(m_pLogger);
-    m_Aaf2Controller.setSleeper(m_pSleeper);
+	m_EFLensController.SetSerxPointer(m_pSerX);
 }
 
 X2Focuser::~X2Focuser()
@@ -110,7 +106,7 @@ double X2Focuser::driverInfoVersion(void) const
 
 void X2Focuser::deviceInfoNameShort(BasicStringInterface& str) const
 {
-    str="AAF2";
+    str="EF Lens Controller";
 }
 
 void X2Focuser::deviceInfoNameLong(BasicStringInterface& str) const				
@@ -120,26 +116,17 @@ void X2Focuser::deviceInfoNameLong(BasicStringInterface& str) const
 
 void X2Focuser::deviceInfoDetailedDescription(BasicStringInterface& str) const		
 {
-	str = "AAF2 Controller";
+	str = "EF Lens Controller";
 }
 
 void X2Focuser::deviceInfoFirmwareVersion(BasicStringInterface& str)				
 {
-    if(!m_bLinked) {
-        str="NA";
-    }
-    else {
-        X2MutexLocker ml(GetMutex());
-        // get firmware version
-        char cFirmware[SERIAL_BUFFER_SIZE];
-        m_Aaf2Controller.getFirmwareVersion(cFirmware, SERIAL_BUFFER_SIZE);
-        str = cFirmware;
-    }
+    str="";
 }
 
 void X2Focuser::deviceInfoModel(BasicStringInterface& str)							
 {
-    str="AAF2";
+    str="EF Lens Controller";
 }
 
 #pragma mark - LinkInterface
@@ -151,7 +138,7 @@ int	X2Focuser::establishLink(void)
     X2MutexLocker ml(GetMutex());
     // get serial port device name
     portNameOnToCharPtr(szPort,DRIVER_MAX_STRING);
-    nErr = m_Aaf2Controller.Connect(szPort);
+    nErr = m_EFLensController.Connect(szPort);
     if(nErr)
         m_bLinked = false;
     else
@@ -166,8 +153,7 @@ int	X2Focuser::terminateLink(void)
         return SB_OK;
 
     X2MutexLocker ml(GetMutex());
-    m_Aaf2Controller.haltFocuser();
-    m_Aaf2Controller.Disconnect();
+    m_EFLensController.Disconnect();
     m_bLinked = false;
 
 	return SB_OK;
@@ -191,50 +177,27 @@ int	X2Focuser::execModalSettingsDialog(void)
     X2GUIInterface*					ui = uiutil.X2UI();
     X2GUIExchangeInterface*			dx = NULL;//Comes after ui is loaded
     bool bPressedOK = false;
-    bool bLimitEnabled = false;
-    int nPosition = 0;
-    int nPosLimit = 0;
 
     mUiEnabled = false;
 
     if (NULL == ui)
         return ERR_POINTER;
 
-    if ((nErr = ui->loadUserInterface("aaf2.ui", deviceType(), m_nPrivateMulitInstanceIndex)))
+    if ((nErr = ui->loadUserInterface("EFLensController.ui", deviceType(), m_nPrivateMulitInstanceIndex)))
         return nErr;
 
     if (NULL == (dx = uiutil.X2DX()))
         return ERR_POINTER;
 
     X2MutexLocker ml(GetMutex());
+    dx->invokeMethod("comboBox","clear");
+    dx->invokeMethod("comboBox_2","clear");
 	// set controls values
     if(m_bLinked) {
-        // new position (set to current )
-        nErr = m_Aaf2Controller.getPosition(nPosition);
-        if(nErr)
-            return nErr;
-        dx->setEnabled("newPos", true);
-        dx->setEnabled("pushButtonSet2", true);
-        dx->setPropertyInt("newPos", "value", nPosition);
     }
     else {
         // disable all controls
-        dx->setEnabled("newPos", false);
-        dx->setPropertyInt("newPos", "value", 0);
-        dx->setEnabled("reverseDir", false);
-        dx->setEnabled("pushButtonSet2", false);
     }
-
-    // linit is done in software so it's always enabled.
-    dx->setEnabled("posLimit", true);
-    dx->setEnabled("limitEnable", true);
-    dx->setPropertyInt("posLimit", "value", m_Aaf2Controller.getPosLimit());
-    if(m_Aaf2Controller.isPosLimitEnabled())
-        dx->setChecked("limitEnable", true);
-    else
-        dx->setChecked("limitEnable", false);
-
-
 
     //Display the user interface
     mUiEnabled = true;
@@ -244,20 +207,6 @@ int	X2Focuser::execModalSettingsDialog(void)
 
     //Retreive values from the user interface
     if (bPressedOK) {
-        nErr = SB_OK;
-        // get limit option
-        bLimitEnabled = dx->isChecked("limitEnable");
-        dx->propertyInt("posLimit", "value", nPosLimit);
-        if(bLimitEnabled && nPosLimit>0) { // a position limit of 0 doesn't make sense :)
-            printf("Setting pos limit to %d\n", nPosLimit);
-            m_Aaf2Controller.setPosLimit(nPosLimit);
-            m_Aaf2Controller.enablePosLimit(bLimitEnabled);
-        } else {
-            m_Aaf2Controller.enablePosLimit(false);
-        }
-        // save values to config
-        nErr |= m_pIniUtil->writeInt(PARENT_KEY, POS_LIMIT, nPosLimit);
-        nErr |= m_pIniUtil->writeInt(PARENT_KEY, POS_LIMIT_ENABLED, bLimitEnabled);
     }
     return nErr;
 }
@@ -267,19 +216,6 @@ void X2Focuser::uiEvent(X2GUIExchangeInterface* uiex, const char* pszEvent)
     int nErr = SB_OK;
     int nTmpVal;
     char szErrorMessage[LOG_BUFFER_SIZE];
-
-    // new position
-    if (!strcmp(pszEvent, "on_pushButton_clicked")) {
-        uiex->propertyInt("newPos", "value", nTmpVal);
-        nErr = m_Aaf2Controller.syncMotorPosition(nTmpVal);
-        if(nErr) {
-            snprintf(szErrorMessage, LOG_BUFFER_SIZE, "Error setting new position : Error %d", nErr);
-            uiex->messageBox("Set New Position", szErrorMessage);
-            return;
-        }
-    }
-
-
 }
 
 #pragma mark - FocuserGotoInterface2
@@ -292,7 +228,7 @@ int	X2Focuser::focPosition(int& nPosition)
 
     X2MutexLocker ml(GetMutex());
 
-    nErr = m_Aaf2Controller.getPosition(nPosition);
+    nErr = m_EFLensController.getPosition(nPosition);
     m_nPosition = nPosition;
     return nErr;
 }
@@ -307,8 +243,8 @@ int	X2Focuser::focMaximumLimit(int& nPosLimit)
 {
 
 	X2MutexLocker ml(GetMutex());
-    if(m_Aaf2Controller.isPosLimitEnabled()) {
-        nPosLimit = m_Aaf2Controller.getPosLimit();
+    if(m_EFLensController.isPosLimitEnabled()) {
+        nPosLimit = m_EFLensController.getPosLimit();
     }
 	else {
 		nPosLimit = 100000;
@@ -318,14 +254,8 @@ int	X2Focuser::focMaximumLimit(int& nPosLimit)
 }
 
 int	X2Focuser::focAbort()								
-{   int nErr;
-
-    if(!m_bLinked)
-        return NOT_CONNECTED;
-
-    X2MutexLocker ml(GetMutex());
-    nErr = m_Aaf2Controller.haltFocuser();
-    return nErr;
+{
+    return ERR_COMMANDNOTSUPPORTED;
 }
 
 int	X2Focuser::startFocGoto(const int& nRelativeOffset)	
@@ -334,7 +264,7 @@ int	X2Focuser::startFocGoto(const int& nRelativeOffset)
         return NOT_CONNECTED;
 
     X2MutexLocker ml(GetMutex());
-    m_Aaf2Controller.moveRelativeToPosision(nRelativeOffset);
+    m_EFLensController.moveRelativeToPosision(nRelativeOffset);
     return SB_OK;
 }
 
@@ -347,7 +277,7 @@ int	X2Focuser::isCompleteFocGoto(bool& bComplete) const
 
     X2Focuser* pMe = (X2Focuser*)this;
     X2MutexLocker ml(pMe->GetMutex());
-	nErr = pMe->m_Aaf2Controller.isGoToComplete(bComplete);
+	nErr = pMe->m_EFLensController.isGoToComplete(bComplete);
 
     return nErr;
 }
@@ -359,7 +289,7 @@ int	X2Focuser::endFocGoto(void)
         return NOT_CONNECTED;
 
     X2MutexLocker ml(GetMutex());
-    nErr = m_Aaf2Controller.getPosition(m_nPosition);
+    nErr = m_EFLensController.getPosition(m_nPosition);
     return nErr;
 }
 
@@ -388,26 +318,8 @@ int	X2Focuser::amountIndexFocGoto(void)
 #pragma mark - FocuserTemperatureInterface
 int X2Focuser::focTemperature(double &dTemperature)
 {
-    int nErr = SB_OK;
-
-    if(!m_bLinked) {
-        dTemperature = -100.0;
-        return NOT_CONNECTED;
-    }
-    X2MutexLocker ml(GetMutex());
-
-    // Taken from Richard's Robofocus plugin code.
-    // this prevent us from asking the temperature too often
-    static CStopWatch timer;
-
-    if(timer.GetElapsedSeconds() > 30.0f || m_fLastTemp < -99.0f) {
-        nErr = m_Aaf2Controller.getTemperature(m_fLastTemp);
-        timer.Reset();
-    }
-
-    dTemperature = m_fLastTemp;
-
-    return nErr;
+    dTemperature = -100.0;
+    return SB_OK;
 }
 
 #pragma mark - SerialPortParams2Interface
