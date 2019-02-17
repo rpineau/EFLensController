@@ -18,3 +18,4 @@ extern "C" PlugInExport int sbPlugInFactory2(	const char* pszDisplayName,
 												MutexInterface					* pIOMutexIn,
 												TickCountInterface				* pTickCountIn,
 												void** ppObjectOut);
+

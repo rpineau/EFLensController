@@ -365,24 +365,74 @@ int CEFLensController::parseFields(const char *pszIn, std::vector<std::string> &
 int CEFLensController::loadLensDef()
 {
 	int nErr = EFCTL_OK;
+	std::string::size_type nPos;
 	std::string line;
 	std::string sCWD;
+	std::string pathToDef;
 	std::vector<std::string> lensEntry;
 	std::vector<std::string> lensFRatios;
 	tLensDefnition tLens;
 	
 	sCWD = GetCurrentWorkingDir();
-	
 #if defined EFCTL_DEBUG && EFCTL_DEBUG >= 2
 	ltime = time(NULL);
 	timestamp = asctime(localtime(&ltime));
 	timestamp[strlen(timestamp) - 1] = 0;
 	fprintf(Logfile, "[%s] [CEFLensController::loadLensDef] loading lens definition.\n", timestamp);
-	fprintf(Logfile, "[%s] [CEFLensController::loadLensDef] sCWD = '%s'\n", timestamp, sCWD.c_str());
 	fflush(Logfile);
 #endif
 
-	m_fLensDef.open("lens.txt");
+	nPos = sCWD.find("Resources");
+#if defined EFCTL_DEBUG && EFCTL_DEBUG >= 2
+	ltime = time(NULL);
+	timestamp = asctime(localtime(&ltime));
+	timestamp[strlen(timestamp) - 1] = 0;
+	fprintf(Logfile, "[%s] [CEFLensController::loadLensDef] nPos = %lu\n", timestamp, nPos);
+	fflush(Logfile);
+#endif
+
+	if(nPos) {
+		pathToDef = sCWD.substr(0, nPos);
+
+#if defined(SB_WIN_BUILD)
+		pathToDef = sCWD.substr(0, nPos).append("Resources\Common\PlugIns\FocuserPlugins\lens.txt");
+		m_fLensDef.open(pathToDef.c_str());
+		if(!m_fLensDef.good()) {
+			pathToDef = sCWD.substr(0, nPos).append("Resources\Common\PlugIns64\FocuserPlugins\lens.txt");
+			m_fLensDef.open(pathToDef.c_str());
+		}
+#elif defined(SB_LINUX_BUILD)
+		pathToDef = sCWD.substr(0, nPos).append("Resources/Common/PlugIns64/FocuserPlugins");
+		m_fLensDef.open(pathToDef.c_str());
+		if(!m_fLensDef.good()) {
+			pathToDef = sCWD.substr(0, nPos).append("Resources/Common/PlugIns/FocuserPlugins");
+			m_fLensDef.open(pathToDef.c_str());
+			if(!m_fLensDef.good()) {
+				pathToDef = sCWD.substr(0, nPos).append("Resources/Common/PlugInsARM32/FocuserPlugins/lens.txt");
+				m_fLensDef.open(pathToDef.c_str());
+			}
+		}
+#elif defined(SB_MAC_BUILD)
+		pathToDef = sCWD.substr(0, nPos).append("Resources/Common/PlugIns/FocuserPlugins/lens.txt");
+		m_fLensDef.open(pathToDef.c_str());
+		if(!m_fLensDef.good()) {
+			pathToDef = sCWD.substr(0, nPos).append("Resources/Common/PlugIns64/FocuserPlugins/lens.txt");
+			m_fLensDef.open(pathToDef.c_str());
+		}
+#endif
+		
+#if defined EFCTL_DEBUG && EFCTL_DEBUG >= 2
+		ltime = time(NULL);
+		timestamp = asctime(localtime(&ltime));
+		timestamp[strlen(timestamp) - 1] = 0;
+		fprintf(Logfile, "[%s] [CEFLensController::loadLensDef] pathToDef = '%s'\n", timestamp, pathToDef.c_str());
+		fflush(Logfile);
+#endif
+	}
+	else
+		return ERR_OPENINGFILE;
+	
+
 	if(!m_fLensDef.is_open()) {
 #if defined EFCTL_DEBUG && EFCTL_DEBUG >= 2
 		ltime = time(NULL);
@@ -401,13 +451,13 @@ int CEFLensController::loadLensDef()
 		ltime = time(NULL);
 		timestamp = asctime(localtime(&ltime));
 		timestamp[strlen(timestamp) - 1] = 0;
-		fprintf(Logfile, "[%s] CEFLensController::loadLensDef line : '%s'\n", timestamp, line.c_str());
+		fprintf(Logfile, "[%s] CEFLensController::loadLensDef line : '%s'\n", timestamp, trim(line, " \n\r").c_str());
 		fflush(Logfile);
 #endif
 		// parse it
 		parseFields(line.c_str(), lensEntry, '|');
-		tLens.lensName = trim(lensEntry[0]," ");
-		parseFields(trim(lensEntry[1], " ").c_str(), lensFRatios, ' ');
+		tLens.lensName = trim(lensEntry[0]," \n\r");
+		parseFields(trim(lensEntry[1], " \n\r").c_str(), lensFRatios, ' ');
 		tLens.fRatios = lensFRatios;
 		// append line to vector
 		m_LensDefintions.push_back(tLens);
@@ -442,4 +492,3 @@ std::string& CEFLensController::rtrim(std::string& str, const std::string& filte
 	str.erase(str.find_last_not_of(filter) + 1);
 	return str;
 }
-

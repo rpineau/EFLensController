@@ -57,6 +57,8 @@ public:
     CEFLensController();
     ~CEFLensController();
 
+	void on_load(void);
+	
     int         Connect(const char *pszPort);
     void        Disconnect(void);
     bool        IsConnected(void) { return m_bIsConnected; };
