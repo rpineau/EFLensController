@@ -9,11 +9,15 @@
 #define __EFCTL__
 #include <math.h>
 #include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <ctype.h>
+#include <memory.h>
 
-#include <stdio.h>  /* defines FILENAME_MAX */
 // #define WINDOWS  /* uncomment this line to use it for windows.*/
-#ifdef WINDOWS
+#ifdef SB_WIN_BUILD
 #include <direct.h>
+#include <time.h>
 #define GetCurrentDir _getcwd
 #else
 #include <unistd.h>

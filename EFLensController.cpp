@@ -6,17 +6,6 @@
 
 
 #include "EFLensController.h"
-#include <stdlib.h>
-#include <stdio.h>
-#include <ctype.h>
-#include <memory.h>
-#include <string.h>
-#ifdef SB_MAC_BUILD
-#include <unistd.h>
-#endif
-#ifdef SB_WIN_BUILD
-#include <time.h>
-#endif
 
 
 CEFLensController::CEFLensController()
@@ -395,10 +384,10 @@ int CEFLensController::loadLensDef()
 		pathToDef = sCWD.substr(0, nPos);
 
 #if defined(SB_WIN_BUILD)
-		pathToDef = sCWD.substr(0, nPos).append("Resources\Common\PlugIns\FocuserPlugins\lens.txt");
+		pathToDef = sCWD.substr(0, nPos).append("Resources\\Common\\PlugIns\\FocuserPlugins\\lens.txt");
 		m_fLensDef.open(pathToDef.c_str());
 		if(!m_fLensDef.good()) {
-			pathToDef = sCWD.substr(0, nPos).append("Resources\Common\PlugIns64\FocuserPlugins\lens.txt");
+			pathToDef = sCWD.substr(0, nPos).append("Resources\\Common\\PlugIns64\\FocuserPlugins\\lens.txt");
 			m_fLensDef.open(pathToDef.c_str());
 		}
 #elif defined(SB_LINUX_BUILD)
