@@ -1,9 +1,8 @@
 //
-//  AAF2.h
-//  NexDome
+//  EFLensController.h
+//  EF Lens Controller X2 plugin
 //
-//  Created by Rodolphe Pineau on 2017/05/30.
-//  NexDome X2 plugin
+//  Created by Rodolphe Pineau on 2019/02/16.
 
 #ifndef __EFCTL__
 #define __EFCTL__
@@ -14,7 +13,6 @@
 #include <ctype.h>
 #include <memory.h>
 
-// #define WINDOWS  /* uncomment this line to use it for windows.*/
 #ifdef SB_WIN_BUILD
 #include <direct.h>
 #include <time.h>
@@ -68,7 +66,7 @@ public:
     bool        IsConnected(void) { return m_bIsConnected; };
 
     void        SetSerxPointer(SerXInterface *p) { m_pSerx = p; };
-
+	void        setSleeper(SleeperInterface *pSleeper) { m_pSleeper = pSleeper; };
     // move commands
     int         gotoPosition(int nPos);
     int         moveRelativeToPosision(int nSteps);
@@ -95,6 +93,7 @@ protected:
 	std::string		GetCurrentWorkingDir( void );
 	
     SerXInterface   *m_pSerx;
+	SleeperInterface    *m_pSleeper;
 
     bool            m_bDebugLog;
     bool            m_bIsConnected;
@@ -113,6 +112,17 @@ protected:
 	std::string&    ltrim(std::string &str, const std::string &filter);
 	std::string&    rtrim(std::string &str, const std::string &filter);
 
+#ifdef SB_WIN_BUILD
+#define NB_PATH 2
+	std::string sPluginPath[NB_PATH] = {"PlugIns","PlugIns64"};
+#elif defined(SB_LINUX_BUILD)
+#define NB_PATH 4
+	std::string sPluginPath[NB_PATH] = {"PlugIns","PlugIns64","PlugInsARM32","PlugInsARM64"};
+#elif defined(SB_MAC_BUILD)
+#define NB_PATH 2
+	std::string sPluginPath[NB_PATH] = {"PlugIns","PlugIns64"};
+#endif
+	
 #ifdef EFCTL_DEBUG
     std::string m_sLogfilePath;
     // timestamp for logs

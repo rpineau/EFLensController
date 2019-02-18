@@ -1,8 +1,8 @@
 //
-//  nexdome.cpp
-//  NexDome X2 plugin
+//  EFLensController.cpp
+//  EF Lens Controller X2 plugin
 //
-//  Created by Rodolphe Pineau on 6/11/2016.
+//  Created by Rodolphe Pineau on 2019/02/16.
 
 
 #include "EFLensController.h"
@@ -60,7 +60,9 @@ CEFLensController::~CEFLensController()
 int CEFLensController::Connect(const char *pszPort)
 {
     int nErr = EFCTL_OK;
-
+	bool bGotoZeroDone = false;
+	int timeout = 0;
+	
     if(!m_pSerx)
         return ERR_COMMNOLINK;
 
@@ -89,6 +91,20 @@ int CEFLensController::Connect(const char *pszPort)
 	fflush(Logfile);
 #endif
 	
+	gotoPosition(0);
+	do {
+		m_pSleeper->sleep(100);
+		isGoToComplete(bGotoZeroDone);
+		timeout++;
+		if( timeout > 15) {
+			m_pSerx->close();
+			m_bIsConnected = false;
+			return ERR_COMMNOLINK;
+		}
+	} while(!bGotoZeroDone);
+	
+	setApperture(m_nCurrentApperture);
+
     return nErr;
 }
 
@@ -217,6 +233,8 @@ int CEFLensController::setApperture(int &nAppeture)
     int nErr;
     char szCmd[SERIAL_BUFFER_SIZE];
 
+	m_nCurrentApperture = nAppeture;
+
     if(!m_bIsConnected)
         return ERR_COMMNOLINK;
 
@@ -233,7 +251,6 @@ int CEFLensController::setApperture(int &nAppeture)
     nErr = cEFCtlCommand(szCmd, NULL, SERIAL_BUFFER_SIZE);
     if(nErr)
         return nErr;
-    m_nCurrentApperture = nAppeture;
     return nErr;
 }
 
@@ -354,6 +371,7 @@ int CEFLensController::parseFields(const char *pszIn, std::vector<std::string> &
 int CEFLensController::loadLensDef()
 {
 	int nErr = EFCTL_OK;
+	int i;
 	std::string::size_type nPos;
 	std::string line;
 	std::string sCWD;
@@ -372,41 +390,22 @@ int CEFLensController::loadLensDef()
 #endif
 
 	nPos = sCWD.find("Resources");
-#if defined EFCTL_DEBUG && EFCTL_DEBUG >= 2
-	ltime = time(NULL);
-	timestamp = asctime(localtime(&ltime));
-	timestamp[strlen(timestamp) - 1] = 0;
-	fprintf(Logfile, "[%s] [CEFLensController::loadLensDef] nPos = %lu\n", timestamp, nPos);
-	fflush(Logfile);
-#endif
-
 	if(nPos) {
 		pathToDef = sCWD.substr(0, nPos);
 
 #if defined(SB_WIN_BUILD)
-		pathToDef = sCWD.substr(0, nPos).append("Resources\\Common\\PlugIns\\FocuserPlugins\\lens.txt");
-		m_fLensDef.open(pathToDef.c_str());
-		if(!m_fLensDef.good()) {
-			pathToDef = sCWD.substr(0, nPos).append("Resources\\Common\\PlugIns64\\FocuserPlugins\\lens.txt");
-			m_fLensDef.open(pathToDef.c_str());
+		for(i =0; i< sPluginPath.size(); i++) {
+			pathToDef = sCWD.substr(0, nPos) + "Resources\\Common\\" + sPluginPath[i] + "\\FocuserPlugins\\lens.txt";
+			m_fLensDef.open(pathToDef);
+			if(m_fLensDef.good())
+				break;
 		}
-#elif defined(SB_LINUX_BUILD)
-		pathToDef = sCWD.substr(0, nPos).append("Resources/Common/PlugIns64/FocuserPlugins");
-		m_fLensDef.open(pathToDef.c_str());
-		if(!m_fLensDef.good()) {
-			pathToDef = sCWD.substr(0, nPos).append("Resources/Common/PlugIns/FocuserPlugins");
-			m_fLensDef.open(pathToDef.c_str());
-			if(!m_fLensDef.good()) {
-				pathToDef = sCWD.substr(0, nPos).append("Resources/Common/PlugInsARM32/FocuserPlugins/lens.txt");
-				m_fLensDef.open(pathToDef.c_str());
-			}
-		}
-#elif defined(SB_MAC_BUILD)
-		pathToDef = sCWD.substr(0, nPos).append("Resources/Common/PlugIns/FocuserPlugins/lens.txt");
-		m_fLensDef.open(pathToDef.c_str());
-		if(!m_fLensDef.good()) {
-			pathToDef = sCWD.substr(0, nPos).append("Resources/Common/PlugIns64/FocuserPlugins/lens.txt");
-			m_fLensDef.open(pathToDef.c_str());
+#else
+		for(i =0; i< NB_PATH; i++) {
+			pathToDef = sCWD.substr(0, nPos) + "Resources/Common/" + sPluginPath[i] + "/FocuserPlugins/lens.txt";
+			m_fLensDef.open(pathToDef);
+			if(m_fLensDef.good())
+				break;
 		}
 #endif
 		
@@ -436,6 +435,8 @@ int CEFLensController::loadLensDef()
 	while (m_fLensDef) {
 		// Read a Line from File
 		getline(m_fLensDef, line);
+		if(!line.size())
+			continue;
 #ifdef EFCTL_DEBUG
 		ltime = time(NULL);
 		timestamp = asctime(localtime(&ltime));
@@ -458,10 +459,13 @@ int CEFLensController::loadLensDef()
 	return nErr;
 }
 
-std::string CEFLensController::GetCurrentWorkingDir( void ) {
+std::string CEFLensController::GetCurrentWorkingDir( void )
+{
 	char buff[FILENAME_MAX];
+
 	GetCurrentDir( buff, FILENAME_MAX );
 	std::string current_working_dir(buff);
+
 	return current_working_dir;
 }
 

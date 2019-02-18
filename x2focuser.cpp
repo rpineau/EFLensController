@@ -40,6 +40,7 @@ X2Focuser::X2Focuser(const char* pszDisplayName,
     if (m_pIniUtil) {
     }
 	m_EFLensController.SetSerxPointer(m_pSerX);
+	m_EFLensController.setSleeper(m_pSleeper);
 }
 
 X2Focuser::~X2Focuser()
@@ -255,7 +256,8 @@ int	X2Focuser::focMaximumLimit(int& nPosLimit)
 
 int	X2Focuser::focAbort()								
 {
-    return ERR_COMMANDNOTSUPPORTED;
+	return SB_OK;
+    // return ERR_COMMANDNOTSUPPORTED;
 }
 
 int	X2Focuser::startFocGoto(const int& nRelativeOffset)	
