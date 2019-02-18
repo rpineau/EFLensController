@@ -1,17 +1,6 @@
-#include <stdio.h>
-#include <string.h>
+
 #include "x2focuser.h"
 
-#include "../../licensedinterfaces/theskyxfacadefordriversinterface.h"
-#include "../../licensedinterfaces/sleeperinterface.h"
-#include "../../licensedinterfaces/loggerinterface.h"
-#include "../../licensedinterfaces/basiciniutilinterface.h"
-#include "../../licensedinterfaces/mutexinterface.h"
-#include "../../licensedinterfaces/basicstringinterface.h"
-#include "../../licensedinterfaces/tickcountinterface.h"
-#include "../../licensedinterfaces/serxinterface.h"
-#include "../../licensedinterfaces/sberrorx.h"
-#include "../../licensedinterfaces/serialportparams2interface.h"
 
 X2Focuser::X2Focuser(const char* pszDisplayName, 
 												const int& nInstanceIndex,
@@ -36,11 +25,14 @@ X2Focuser::X2Focuser(const char* pszDisplayName,
 	m_nPosition = 0;
     m_fLastTemp = -273.15f; // aboslute zero :)
 
+	m_EFLensController.SetSerxPointer(m_pSerX);
+	m_EFLensController.setSleeper(m_pSleeper);
+	m_EFLensController.setTheSkyXForMount(m_pTheSkyXForMounts);
+	m_EFLensController.loadLensDef();
+
     // Read in settings
     if (m_pIniUtil) {
     }
-	m_EFLensController.SetSerxPointer(m_pSerX);
-	m_EFLensController.setSleeper(m_pSleeper);
 }
 
 X2Focuser::~X2Focuser()

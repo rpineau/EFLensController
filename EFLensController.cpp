@@ -46,7 +46,6 @@ CEFLensController::CEFLensController()
     fflush(Logfile);
 #endif
 
-	loadLensDef();
 }
 
 CEFLensController::~CEFLensController()
@@ -372,15 +371,19 @@ int CEFLensController::loadLensDef()
 {
 	int nErr = EFCTL_OK;
 	int i;
-	std::string::size_type nPos;
 	std::string line;
-	std::string sCWD;
-	std::string pathToDef;
+	std::string sAppDir;
+	std::string sPathToLensDef;
 	std::vector<std::string> lensEntry;
 	std::vector<std::string> lensFRatios;
 	tLensDefnition tLens;
 	
-	sCWD = GetCurrentWorkingDir();
+	m_LensDefintions.clear();
+	
+	sAppDir = GetAppDir();
+	if(!sAppDir.size())
+		return ERR_PATHNOTFOUND;
+	
 #if defined EFCTL_DEBUG && EFCTL_DEBUG >= 2
 	ltime = time(NULL);
 	timestamp = asctime(localtime(&ltime));
@@ -389,21 +392,17 @@ int CEFLensController::loadLensDef()
 	fflush(Logfile);
 #endif
 
-	nPos = sCWD.find("Resources");
-	if(nPos) {
-		pathToDef = sCWD.substr(0, nPos);
-
 #if defined(SB_WIN_BUILD)
-		for(i =0; i< sPluginPath.size(); i++) {
-			pathToDef = sCWD.substr(0, nPos) + "Resources\\Common\\" + sPluginPath[i] + "\\FocuserPlugins\\lens.txt";
-			m_fLensDef.open(pathToDef);
+		for(i = 0; i < sPluginPath.size(); i++) {
+			sPathToLensDef = sAppDir + "\\Resources\\Common\\" + sPluginPath[i] + "\\FocuserPlugins\\lens.txt";
+			m_fLensDef.open(sPathToLensDef);
 			if(m_fLensDef.good())
 				break;
 		}
 #else
-		for(i =0; i< NB_PATH; i++) {
-			pathToDef = sCWD.substr(0, nPos) + "Resources/Common/" + sPluginPath[i] + "/FocuserPlugins/lens.txt";
-			m_fLensDef.open(pathToDef);
+		for(i = 0; i < NB_PATH; i++) {
+			sPathToLensDef = sAppDir + "/Resources/Common/" + sPluginPath[i] + "/FocuserPlugins/lens.txt";
+			m_fLensDef.open(sPathToLensDef);
 			if(m_fLensDef.good())
 				break;
 		}
@@ -413,12 +412,9 @@ int CEFLensController::loadLensDef()
 		ltime = time(NULL);
 		timestamp = asctime(localtime(&ltime));
 		timestamp[strlen(timestamp) - 1] = 0;
-		fprintf(Logfile, "[%s] [CEFLensController::loadLensDef] pathToDef = '%s'\n", timestamp, pathToDef.c_str());
+		fprintf(Logfile, "[%s] [CEFLensController::loadLensDef] sPathToLensDef = '%s'\n", timestamp, sPathToLensDef.c_str());
 		fflush(Logfile);
 #endif
-	}
-	else
-		return ERR_OPENINGFILE;
 	
 
 	if(!m_fLensDef.is_open()) {
@@ -459,14 +455,41 @@ int CEFLensController::loadLensDef()
 	return nErr;
 }
 
-std::string CEFLensController::GetCurrentWorkingDir( void )
+std::string CEFLensController::GetAppDir(void)
 {
-	char buff[FILENAME_MAX];
+	std::string	InstallPath;
+	std::string	AppDir;
+	std::ifstream fTmp;
+	char appDirInOut[CMD_SIZE];
 
-	GetCurrentDir( buff, FILENAME_MAX );
-	std::string current_working_dir(buff);
+	if(!m_pTheSkyXForMounts)
+		return std::string("");
 
-	return current_working_dir;
+	memset(appDirInOut, 0, CMD_SIZE);
+	sprintf(appDirInOut, "applicationDirPath");
+	m_pTheSkyXForMounts->pathToWriteConfigFilesTo(appDirInOut, CMD_SIZE);
+
+#if defined(SB_WIN_BUILD)
+	InstallPath = std::string(appDirInOut) + "\\TheSkyXInstallPath.txt";
+#else
+	InstallPath = std::string(appDirInOut) + "/TheSkyXInstallPath.txt";
+#endif
+
+	fTmp.open(InstallPath);
+	if(!fTmp.good())
+		return "";
+	
+	getline(fTmp, AppDir);
+	fTmp.close();
+
+#if defined EFCTL_DEBUG && EFCTL_DEBUG >= 2
+	ltime = time(NULL);
+	timestamp = asctime(localtime(&ltime));
+	timestamp[strlen(timestamp) - 1] = 0;
+	fprintf(Logfile, "[%s] [CEFLensController::GetAppDir] AppDir = %s.\n", timestamp, AppDir.c_str());
+	fflush(Logfile);
+#endif
+	return AppDir;
 }
 
 std::string& CEFLensController::trim(std::string &str, const std::string& filter )

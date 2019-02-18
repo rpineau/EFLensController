@@ -36,12 +36,14 @@
 #include "../../licensedinterfaces/serxinterface.h"
 #include "../../licensedinterfaces/loggerinterface.h"
 #include "../../licensedinterfaces/sleeperinterface.h"
+#include "../../licensedinterfaces/theskyxfacadefordriversinterface.h"
 
 #define EFCTL_DEBUG 2
 
 #define SERIAL_BUFFER_SIZE 256
 #define MAX_TIMEOUT 1000
 #define LOG_BUFFER_SIZE 256
+#define CMD_SIZE 5000
 
 enum EFCTL_Errors    {EFCTL_OK = 0, NOT_CONNECTED, ND_CANT_CONNECT, EFCTL_BAD_CMD_RESPONSE, COMMAND_FAILED};
 enum MotorDir       {NORMAL = 0 , REVERSE};
@@ -59,14 +61,16 @@ public:
     CEFLensController();
     ~CEFLensController();
 
-	void on_load(void);
-	
+
     int         Connect(const char *pszPort);
     void        Disconnect(void);
     bool        IsConnected(void) { return m_bIsConnected; };
 
+	int			loadLensDef();
+
     void        SetSerxPointer(SerXInterface *p) { m_pSerx = p; };
 	void        setSleeper(SleeperInterface *pSleeper) { m_pSleeper = pSleeper; };
+	void        setTheSkyXForMount(TheSkyXFacadeForDriversInterface *pTheSkyXForMounts) { m_pTheSkyXForMounts = pTheSkyXForMounts; };
     // move commands
     int         gotoPosition(int nPos);
     int         moveRelativeToPosision(int nSteps);
@@ -89,12 +93,12 @@ protected:
     int             cEFCtlCommand(const char *pszCmd, char *pszResult, int nResultMaxLen);
     int             readResponse(char *pszRespBuffer, int nBufferLen);
     int             parseFields(const char *pszIn, std::vector<std::string> &svFields, const char &cSeparator);
-	int				loadLensDef();
-	std::string		GetCurrentWorkingDir( void );
+	std::string		GetAppDir(void);
 	
     SerXInterface   *m_pSerx;
 	SleeperInterface    *m_pSleeper;
-
+	TheSkyXFacadeForDriversInterface	*m_pTheSkyXForMounts;
+	
     bool            m_bDebugLog;
     bool            m_bIsConnected;
     char            m_szFirmwareVersion[SERIAL_BUFFER_SIZE];
