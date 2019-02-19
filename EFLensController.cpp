@@ -461,21 +461,10 @@ std::string CEFLensController::GetAppDir(void)
 		return std::string("");
 
 	memset(appDirInOut, 0, CMD_SIZE);
-
 	m_pTheSkyXForMounts->version(szVersion, LOG_BUFFER_SIZE);
 	dVersion = atof(szVersion);
 	nBuild = m_pTheSkyXForMounts->build();
 
-	
-#if defined EFCTL_DEBUG && EFCTL_DEBUG >= 2
-	ltime = time(NULL);
-	timestamp = asctime(localtime(&ltime));
-	timestamp[strlen(timestamp) - 1] = 0;
-	fprintf(Logfile, "[%s] [CEFLensController::GetAppDir] szVersion = %s\n", timestamp, szVersion);
-	fprintf(Logfile, "[%s] [CEFLensController::GetAppDir] dVersion = %f\n", timestamp, dVersion);
-	fprintf(Logfile, "[%s] [CEFLensController::GetAppDir] nBuild = %d\n", timestamp, nBuild);
-	fflush(Logfile);
-#endif
 	if(dVersion>= 15.0 && nBuild >= 12107) {
 		sprintf(appDirInOut, "applicationDirPath");
 		m_pTheSkyXForMounts->pathToWriteConfigFilesTo(appDirInOut, CMD_SIZE);
