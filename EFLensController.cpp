@@ -433,13 +433,6 @@ int CEFLensController::loadLensDef()
 		getline(m_fLensDef, line);
 		if(!line.size())
 			continue;
-#ifdef EFCTL_DEBUG
-		ltime = time(NULL);
-		timestamp = asctime(localtime(&ltime));
-		timestamp[strlen(timestamp) - 1] = 0;
-		fprintf(Logfile, "[%s] CEFLensController::loadLensDef line : '%s'\n", timestamp, trim(line, " \n\r").c_str());
-		fflush(Logfile);
-#endif
 		// parse it
 		parseFields(line.c_str(), lensEntry, '|');
 		tLens.lensName = trim(lensEntry[0]," \n\r");
@@ -461,32 +454,54 @@ std::string CEFLensController::GetAppDir(void)
 	std::string	AppDir;
 	std::ifstream fTmp;
 	char appDirInOut[CMD_SIZE];
-
+	char szVersion[LOG_BUFFER_SIZE];
+	int nBuild;
+	float dVersion;
 	if(!m_pTheSkyXForMounts)
 		return std::string("");
 
 	memset(appDirInOut, 0, CMD_SIZE);
-	sprintf(appDirInOut, "applicationDirPath");
-	m_pTheSkyXForMounts->pathToWriteConfigFilesTo(appDirInOut, CMD_SIZE);
 
-#if defined(SB_WIN_BUILD)
-	InstallPath = std::string(appDirInOut) + "\\TheSkyXInstallPath.txt";
-#else
-	InstallPath = std::string(appDirInOut) + "/TheSkyXInstallPath.txt";
-#endif
+	m_pTheSkyXForMounts->version(szVersion, LOG_BUFFER_SIZE);
+	dVersion = atof(szVersion);
+	nBuild = m_pTheSkyXForMounts->build();
 
-	fTmp.open(InstallPath);
-	if(!fTmp.good())
-		return "";
 	
-	getline(fTmp, AppDir);
-	fTmp.close();
+#if defined EFCTL_DEBUG && EFCTL_DEBUG >= 2
+	ltime = time(NULL);
+	timestamp = asctime(localtime(&ltime));
+	timestamp[strlen(timestamp) - 1] = 0;
+	fprintf(Logfile, "[%s] [CEFLensController::GetAppDir] szVersion = %s\n", timestamp, szVersion);
+	fprintf(Logfile, "[%s] [CEFLensController::GetAppDir] dVersion = %f\n", timestamp, dVersion);
+	fprintf(Logfile, "[%s] [CEFLensController::GetAppDir] nBuild = %d\n", timestamp, nBuild);
+	fflush(Logfile);
+#endif
+	if(dVersion>= 15.0 && nBuild >= 12107) {
+		sprintf(appDirInOut, "applicationDirPath");
+		m_pTheSkyXForMounts->pathToWriteConfigFilesTo(appDirInOut, CMD_SIZE);
+		AppDir = std::string(appDirInOut);
+	}
+	else {
+		m_pTheSkyXForMounts->pathToWriteConfigFilesTo(appDirInOut, CMD_SIZE);
+#if defined(SB_WIN_BUILD)
+		InstallPath = std::string(appDirInOut) + "\\TheSkyXInstallPath.txt";
+#else
+		InstallPath = std::string(appDirInOut) + "/TheSkyXInstallPath.txt";
+#endif
+		
+		fTmp.open(InstallPath);
+		if(!fTmp.good())
+			return "";
+		
+		getline(fTmp, AppDir);
+		fTmp.close();
+	}
 
 #if defined EFCTL_DEBUG && EFCTL_DEBUG >= 2
 	ltime = time(NULL);
 	timestamp = asctime(localtime(&ltime));
 	timestamp[strlen(timestamp) - 1] = 0;
-	fprintf(Logfile, "[%s] [CEFLensController::GetAppDir] AppDir = %s.\n", timestamp, AppDir.c_str());
+	fprintf(Logfile, "[%s] [CEFLensController::GetAppDir] AppDir = %s\n", timestamp, AppDir.c_str());
 	fflush(Logfile);
 #endif
 	return AppDir;
