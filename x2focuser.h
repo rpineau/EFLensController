@@ -39,6 +39,9 @@ class TickCountInterface;
 #define CHILD_KEY_PORTNAME	"PortName"
 #define POS_LIMIT           "PosLimit"
 #define POS_LIMIT_ENABLED   "PosLimitEnable"
+#define LENS_NAME			"LensName"
+#define LENS_APERTURE		"LensAperture"
+
 
 #if defined(SB_WIN_BUILD)
 #define DEF_PORT_NAME					"COM1"
@@ -143,6 +146,7 @@ public:
 
 
 private:
+	void		selectLensId(int nIdx);
 
     int                                     m_nPrivateMulitInstanceIndex;
 
@@ -170,6 +174,11 @@ private:
     double                                  m_fLastTemp;
     CEFLensController                       m_EFLensController;
     bool                                    mUiEnabled;
+	int										m_nLensIdx;
+	int										m_nLensApertureIdx;
+	char 									m_szLensName[256];
+	char									m_szLensAperture[256];
+
 };
 
 

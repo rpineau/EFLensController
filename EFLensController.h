@@ -88,9 +88,15 @@ public:
     int         setApperture(int &nAppeture);
     int         getApperture(void);
 
+	int			getLensesCount();
+	tLensDefnition	getLensDef(const int &nLensIdx);
+	
+	int getLensIdxFromName(const char *szLensName);
+	int getLensApertureIdxFromName(const int nLensIdx, const char *szLensAperture);
+
 protected:
 
-    int             cEFCtlCommand(const char *pszCmd, char *pszResult, int nResultMaxLen);
+    int             EFCtlCommand(const char *pszCmd, char *pszResult, int nResultMaxLen);
     int             readResponse(char *pszRespBuffer, int nBufferLen);
     int             parseFields(const char *pszIn, std::vector<std::string> &svFields, const char &cSeparator);
 	std::string		GetAppDir(void);
@@ -111,7 +117,7 @@ protected:
     int             m_nCurrentApperture;
 	
 	std::ifstream 	m_fLensDef;
-	std::vector<tLensDefnition>	m_LensDefintions;
+	std::vector<tLensDefnition>	m_LensDefinitions;
 	std::string&    trim(std::string &str, const std::string &filter );
 	std::string&    ltrim(std::string &str, const std::string &filter);
 	std::string&    rtrim(std::string &str, const std::string &filter);

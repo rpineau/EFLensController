@@ -20,10 +20,12 @@ X2Focuser::X2Focuser(const char* pszDisplayName,
 	m_pLogger						= pLoggerIn;	
 	m_pIOMutex						= pIOMutexIn;
 	m_pTickCount					= pTickCountIn;
-	
+
 	m_bLinked = false;
 	m_nPosition = 0;
     m_fLastTemp = -273.15f; // aboslute zero :)
+	m_nLensIdx = 0;
+	m_nLensApertureIdx = 0;
 
 	m_EFLensController.SetSerxPointer(m_pSerX);
 	m_EFLensController.setSleeper(m_pSleeper);
@@ -32,7 +34,17 @@ X2Focuser::X2Focuser(const char* pszDisplayName,
 
     // Read in settings
     if (m_pIniUtil) {
+		memset(m_szLensName, 0, 256);
+		memset(m_szLensAperture, 0, 256);
+		m_pIniUtil->readString(PARENT_KEY, LENS_NAME, "", m_szLensName, 256);
+		if(strlen(m_szLensName)) {
+			m_pIniUtil->readString(PARENT_KEY, LENS_APERTURE, "", m_szLensAperture, 256);
+			m_nLensIdx = m_EFLensController.getLensIdxFromName(m_szLensName);
+			m_nLensApertureIdx = m_EFLensController.getLensApertureIdxFromName(m_nLensIdx, m_szLensAperture);
+		}
     }
+
+	m_EFLensController.setApperture(m_nLensApertureIdx);
 }
 
 X2Focuser::~X2Focuser()
@@ -170,8 +182,10 @@ int	X2Focuser::execModalSettingsDialog(void)
     X2GUIInterface*					ui = uiutil.X2UI();
     X2GUIExchangeInterface*			dx = NULL;//Comes after ui is loaded
     bool bPressedOK = false;
-
     mUiEnabled = false;
+	tLensDefnition tLens;
+	int nLensIndex;
+	int nApertureIndex;
 
     if (NULL == ui)
         return ERR_POINTER;
@@ -186,6 +200,20 @@ int	X2Focuser::execModalSettingsDialog(void)
     dx->invokeMethod("comboBox","clear");
     dx->invokeMethod("comboBox_2","clear");
 	// set controls values
+	// fill the combo boxes
+	for(nLensIndex = 0; nLensIndex < m_EFLensController.getLensesCount(); nLensIndex++) {
+		tLens = m_EFLensController.getLensDef(nLensIndex);
+		dx->comboBoxAppendString("comboBox", tLens.lensName.c_str());
+		if(nLensIndex == m_nLensIdx) {
+			for(nApertureIndex = 0; nApertureIndex < tLens.fRatios.size(); nApertureIndex++) {
+				dx->comboBoxAppendString("comboBox_2", tLens.fRatios[nApertureIndex].c_str());
+			}
+		}
+	}
+	dx->setCurrentIndex("comboBox", m_nLensIdx);
+	dx->setCurrentIndex("comboBox_2", m_nLensApertureIdx);
+	
+	// debug
     if(m_bLinked) {
     }
     else {
@@ -200,15 +228,42 @@ int	X2Focuser::execModalSettingsDialog(void)
 
     //Retreive values from the user interface
     if (bPressedOK) {
+		m_nLensIdx = dx->currentIndex("comboBox");
+		m_nLensApertureIdx = dx->currentIndex("comboBox_2");
+		tLens = m_EFLensController.getLensDef(m_nLensIdx);
+		m_pIniUtil->writeString(PARENT_KEY, LENS_NAME, tLens.lensName.c_str());
+		m_pIniUtil->writeString(PARENT_KEY, LENS_APERTURE, tLens.fRatios[m_nLensApertureIdx].c_str());
     }
+
+	m_EFLensController.setApperture(m_nLensApertureIdx);
     return nErr;
 }
 
 void X2Focuser::uiEvent(X2GUIExchangeInterface* uiex, const char* pszEvent)
 {
-    int nErr = SB_OK;
-    int nTmpVal;
-    char szErrorMessage[LOG_BUFFER_SIZE];
+	int nLensIndex = 0;
+	int nApertureIndex = 0;
+	tLensDefnition tLens;
+	
+	if (!strcmp(pszEvent, "on_comboBox_currentIndexChanged")) {
+		nLensIndex = uiex->currentIndex("comboBox");
+		if(nLensIndex >= 0) {
+			tLens = m_EFLensController.getLensDef(nLensIndex);
+			m_EFLensController.setApperture(nApertureIndex);
+			// clear combo and refill with newly selected lens apertures
+			uiex->invokeMethod("comboBox_2","clear");
+			for(nApertureIndex = 0; nApertureIndex < tLens.fRatios.size(); nApertureIndex++) {
+				uiex->comboBoxAppendString("comboBox_2", tLens.fRatios[nApertureIndex].c_str());
+			}
+			uiex->setCurrentIndex("comboBox_2",0);
+		}
+	}
+	else if (!strcmp(pszEvent, "on_comboBox_2_currentIndexChanged")) {
+		nApertureIndex = uiex->currentIndex("comboBox_2");
+		if(nApertureIndex >= 0) {
+			m_EFLensController.setApperture(nApertureIndex);
+		}
+	}
 }
 
 #pragma mark - FocuserGotoInterface2

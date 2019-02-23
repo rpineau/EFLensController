@@ -137,7 +137,7 @@ int CEFLensController::gotoPosition(int nPos)
 #endif
 
     snprintf(szCmd, SERIAL_BUFFER_SIZE, "M%d#", nPos);
-    nErr = cEFCtlCommand(szCmd, NULL, SERIAL_BUFFER_SIZE);
+    nErr = EFCtlCommand(szCmd, NULL, SERIAL_BUFFER_SIZE);
     if(nErr)
         return nErr;
     m_nTargetPos = nPos;
@@ -191,7 +191,7 @@ int CEFLensController::getPosition(int &nPosition)
 	if(!m_bIsConnected)
 		return ERR_COMMNOLINK;
 
-    nErr = cEFCtlCommand("P#", szResp, SERIAL_BUFFER_SIZE);
+    nErr = EFCtlCommand("P#", szResp, SERIAL_BUFFER_SIZE);
     if(nErr)
         return nErr;
 
@@ -247,7 +247,7 @@ int CEFLensController::setApperture(int &nAppeture)
 #endif
 
     snprintf(szCmd, SERIAL_BUFFER_SIZE, "A%d#", nAppeture);
-    nErr = cEFCtlCommand(szCmd, NULL, SERIAL_BUFFER_SIZE);
+    nErr = EFCtlCommand(szCmd, NULL, SERIAL_BUFFER_SIZE);
     if(nErr)
         return nErr;
     return nErr;
@@ -258,9 +258,43 @@ int CEFLensController::getApperture(void)
     return m_nCurrentApperture;
 }
 
+int CEFLensController::getLensesCount()
+{
+	return int(m_LensDefinitions.size());
+}
+
+tLensDefnition CEFLensController::getLensDef(const int &nLensIdx)
+{
+	if(nLensIdx >= 0 && nLensIdx < m_LensDefinitions.size())
+		return m_LensDefinitions[nLensIdx];
+	else
+		return {};
+}
+
+int CEFLensController::getLensIdxFromName(const char *szLensName)
+{
+	int i;
+	for(i = 0; i < m_LensDefinitions.size(); i++) {
+		if(m_LensDefinitions[i].lensName == szLensName)
+			return i;
+	}
+	return 0;
+}
+
+int CEFLensController::getLensApertureIdxFromName(const int nLensIdx, const char *szLensAperture)
+{
+	int i;
+	for(i = 0; i < m_LensDefinitions[nLensIdx].fRatios.size(); i++ ) {
+		if(m_LensDefinitions[nLensIdx].fRatios[i] == szLensAperture)
+			return i;
+	}
+	return 0;
+}
+
+
 #pragma mark command and response functions
 
-int CEFLensController::cEFCtlCommand(const char *pszszCmd, char *pszResult, int nResultMaxLen)
+int CEFLensController::EFCtlCommand(const char *pszszCmd, char *pszResult, int nResultMaxLen)
 {
     int nErr = EFCTL_OK;
     char szResp[SERIAL_BUFFER_SIZE];
@@ -274,7 +308,7 @@ int CEFLensController::cEFCtlCommand(const char *pszszCmd, char *pszResult, int 
 	ltime = time(NULL);
 	timestamp = asctime(localtime(&ltime));
 	timestamp[strlen(timestamp) - 1] = 0;
-	fprintf(Logfile, "[%s] CEFLensController::cEFCtlCommand Sending %s\n", timestamp, pszszCmd);
+	fprintf(Logfile, "[%s] CEFLensController::EFCtlCommand Sending %s\n", timestamp, pszszCmd);
 	fflush(Logfile);
 #endif
     nErr = m_pSerx->writeFile((void *)pszszCmd, strlen(pszszCmd), ulBytesWrite);
@@ -291,7 +325,7 @@ int CEFLensController::cEFCtlCommand(const char *pszszCmd, char *pszResult, int 
 		ltime = time(NULL);
 		timestamp = asctime(localtime(&ltime));
 		timestamp[strlen(timestamp) - 1] = 0;
-		fprintf(Logfile, "[%s] CEFLensController::cEFCtlCommand response \"%s\"\n", timestamp, szResp);
+		fprintf(Logfile, "[%s] CEFLensController::EFCtlCommand response \"%s\"\n", timestamp, szResp);
 		fflush(Logfile);
 #endif
         // printf("Got response : %s\n",resp);
@@ -300,7 +334,7 @@ int CEFLensController::cEFCtlCommand(const char *pszszCmd, char *pszResult, int 
 		ltime = time(NULL);
 		timestamp = asctime(localtime(&ltime));
 		timestamp[strlen(timestamp) - 1] = 0;
-		fprintf(Logfile, "[%s] CEFLensController::cEFCtlCommand response copied to pszResult : \"%s\"\n", timestamp, pszResult);
+		fprintf(Logfile, "[%s] CEFLensController::EFCtlCommand response copied to pszResult : \"%s\"\n", timestamp, pszResult);
 		fflush(Logfile);
 #endif
     }
@@ -378,7 +412,7 @@ int CEFLensController::loadLensDef()
 	std::vector<std::string> lensFRatios;
 	tLensDefnition tLens;
 	
-	m_LensDefintions.clear();
+	m_LensDefinitions.clear();
 	
 	sAppDir = GetAppDir();
 	if(!sAppDir.size())
@@ -439,7 +473,7 @@ int CEFLensController::loadLensDef()
 		parseFields(trim(lensEntry[1], " \n\r").c_str(), lensFRatios, ' ');
 		tLens.fRatios = lensFRatios;
 		// append line to vector
-		m_LensDefintions.push_back(tLens);
+		m_LensDefinitions.push_back(tLens);
 	}
 	
 	// Close the file
