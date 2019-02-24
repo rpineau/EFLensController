@@ -34,6 +34,8 @@ X2Focuser::X2Focuser(const char* pszDisplayName,
 
     // Read in settings
     if (m_pIniUtil) {
+		m_EFLensController.setPosLimit(m_pIniUtil->readInt(PARENT_KEY, POS_LIMIT, 9999));
+		m_EFLensController.enablePosLimit(m_pIniUtil->readInt(PARENT_KEY, POS_LIMIT_ENABLED, false));
 		memset(m_szLensName, 0, 256);
 		memset(m_szLensAperture, 0, 256);
 		m_pIniUtil->readString(PARENT_KEY, LENS_NAME, "", m_szLensName, 256);
@@ -182,7 +184,8 @@ int	X2Focuser::execModalSettingsDialog(void)
     X2GUIInterface*					ui = uiutil.X2UI();
     X2GUIExchangeInterface*			dx = NULL;//Comes after ui is loaded
     bool bPressedOK = false;
-    mUiEnabled = false;
+	bool bLimitEnabled = false;
+	int nPosLimit = 0;
 	tLensDefnition tLens;
 	int nLensIndex;
 	int nApertureIndex;
@@ -213,6 +216,7 @@ int	X2Focuser::execModalSettingsDialog(void)
 	dx->setCurrentIndex("comboBox", m_nLensIdx);
 	dx->setCurrentIndex("comboBox_2", m_nLensApertureIdx);
 	
+	
 	// debug
     if(m_bLinked) {
     }
@@ -220,19 +224,40 @@ int	X2Focuser::execModalSettingsDialog(void)
         // disable all controls
     }
 
-    //Display the user interface
-    mUiEnabled = true;
+	// limit is done in software so it's always enabled.
+	dx->setEnabled("posLimit", true);
+	dx->setEnabled("limitEnable", true);
+	dx->setPropertyInt("posLimit", "value", m_EFLensController.getPosLimit());
+	if(m_EFLensController.isPosLimitEnabled())
+		dx->setChecked("limitEnable", true);
+	else
+		dx->setChecked("limitEnable", false);
+	
+
+	//Display the user interface
     if ((nErr = ui->exec(bPressedOK)))
         return nErr;
-    mUiEnabled = false;
 
     //Retreive values from the user interface
     if (bPressedOK) {
+		// get limit option
+		bLimitEnabled = dx->isChecked("limitEnable");
+		dx->propertyInt("posLimit", "value", nPosLimit);
+		if(bLimitEnabled && nPosLimit>0) { // a position limit of 0 doesn't make sense :)
+			m_EFLensController.setPosLimit(nPosLimit);
+			m_EFLensController.enablePosLimit(bLimitEnabled);
+		} else {
+			m_EFLensController.enablePosLimit(false);
+		}
 		m_nLensIdx = dx->currentIndex("comboBox");
 		m_nLensApertureIdx = dx->currentIndex("comboBox_2");
 		tLens = m_EFLensController.getLensDef(m_nLensIdx);
-		m_pIniUtil->writeString(PARENT_KEY, LENS_NAME, tLens.lensName.c_str());
-		m_pIniUtil->writeString(PARENT_KEY, LENS_APERTURE, tLens.fRatios[m_nLensApertureIdx].c_str());
+
+		// save values to config
+		nErr  = m_pIniUtil->writeString(PARENT_KEY, LENS_NAME, tLens.lensName.c_str());
+		nErr |= m_pIniUtil->writeString(PARENT_KEY, LENS_APERTURE, tLens.fRatios[m_nLensApertureIdx].c_str());
+		nErr |= m_pIniUtil->writeInt(PARENT_KEY, POS_LIMIT, nPosLimit);
+		nErr |= m_pIniUtil->writeInt(PARENT_KEY, POS_LIMIT_ENABLED, bLimitEnabled);
     }
 
 	m_EFLensController.setApperture(m_nLensApertureIdx);
@@ -295,7 +320,7 @@ int	X2Focuser::focMaximumLimit(int& nPosLimit)
         nPosLimit = m_EFLensController.getPosLimit();
     }
 	else {
-		nPosLimit = 100000;
+		nPosLimit = 9999;
 	}
 
 	return SB_OK;

@@ -73,7 +73,7 @@ int CEFLensController::Connect(const char *pszPort)
 	fflush(Logfile);
 #endif
 
-    nErr = m_pSerx->open(pszPort, 38400, SerXInterface::B_NOPARITY, "-DTR_CONTROL 1");
+	nErr = m_pSerx->open(pszPort, 38400, SerXInterface::B_NOPARITY, "-DTR_CONTROL 1");
     if( nErr == 0)
         m_bIsConnected = true;
     else
@@ -89,7 +89,15 @@ int CEFLensController::Connect(const char *pszPort)
 	fprintf(Logfile, "[%s] CEFLensController::Connect connected to %s\n", timestamp, pszPort);
 	fflush(Logfile);
 #endif
-	
+	m_pSleeper->sleep(2000);
+
+#ifdef EFCTL_DEBUG
+	ltime = time(NULL);
+	timestamp = asctime(localtime(&ltime));
+	timestamp[strlen(timestamp) - 1] = 0;
+	fprintf(Logfile, "[%s] CEFLensController::Connect doing a goto 0\n", timestamp);
+	fflush(Logfile);
+#endif
 	gotoPosition(0);
 	do {
 		m_pSleeper->sleep(100);
@@ -102,6 +110,14 @@ int CEFLensController::Connect(const char *pszPort)
 		}
 	} while(!bGotoZeroDone);
 	
+#ifdef EFCTL_DEBUG
+	ltime = time(NULL);
+	timestamp = asctime(localtime(&ltime));
+	timestamp[strlen(timestamp) - 1] = 0;
+	fprintf(Logfile, "[%s] CEFLensController::Connect setting apperture to %d\n", timestamp, m_nCurrentApperture);
+	fflush(Logfile);
+#endif
+
 	setApperture(m_nCurrentApperture);
 
     return nErr;
@@ -109,6 +125,8 @@ int CEFLensController::Connect(const char *pszPort)
 
 void CEFLensController::Disconnect()
 {
+	gotoPosition(0);
+	m_pSleeper->sleep(250);
     if(m_bIsConnected && m_pSerx)
         m_pSerx->close();
  
