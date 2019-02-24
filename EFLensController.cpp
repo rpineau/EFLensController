@@ -445,7 +445,7 @@ int CEFLensController::loadLensDef()
 #endif
 
 #if defined(SB_WIN_BUILD)
-		for(i = 0; i < sPluginPath.size(); i++) {
+		for(i = 0; i < NB_PATH; i++) {
 			sPathToLensDef = sAppDir + "\\Resources\\Common\\" + sPluginPath[i] + "\\FocuserPlugins\\lens.txt";
 			m_fLensDef.open(sPathToLensDef);
 			if(m_fLensDef.good())
