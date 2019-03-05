@@ -454,9 +454,26 @@ int CEFLensController::loadLensDef()
 #else
 		for(i = 0; i < NB_PATH; i++) {
 			sPathToLensDef = sAppDir + "/Resources/Common/" + sPluginPath[i] + "/FocuserPlugins/lens.txt";
+#if defined EFCTL_DEBUG && EFCTL_DEBUG >= 2
+            ltime = time(NULL);
+            timestamp = asctime(localtime(&ltime));
+            timestamp[strlen(timestamp) - 1] = 0;
+            fprintf(Logfile, "[%s] [CEFLensController::loadLensDef] sPathToLensDef = '%s'\n", timestamp, sPathToLensDef.c_str());
+            fflush(Logfile);
+#endif
 			m_fLensDef.open(sPathToLensDef);
-			if(m_fLensDef.good())
+
+#if defined EFCTL_DEBUG && EFCTL_DEBUG >= 2
+            ltime = time(NULL);
+            timestamp = asctime(localtime(&ltime));
+            timestamp[strlen(timestamp) - 1] = 0;
+            fprintf(Logfile, "[%s] [CEFLensController::loadLensDef]  m_fLensDef.good() = d\n", timestamp,  m_fLensDef.good());
+            fflush(Logfile);
+#endif
+            if(m_fLensDef.good()) {
+
 				break;
+            }
 		}
 #endif
 		
