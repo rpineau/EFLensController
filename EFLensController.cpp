@@ -446,14 +446,14 @@ int CEFLensController::loadLensDef()
 
 #if defined(SB_WIN_BUILD)
 		for(i = 0; i < NB_PATH; i++) {
-			sPathToLensDef = sAppDir + "\\Resources\\Common\\" + sPluginPath[i] + "\\FocuserPlugins\\lens.txt";
+			sPathToLensDef = sAppDir + "\\Resources\\Common\\" + sPluginPath[i] + "\\FocuserPlugIns\\lens.txt";
 			m_fLensDef.open(sPathToLensDef);
 			if(m_fLensDef.good())
 				break;
 		}
 #else
 		for(i = 0; i < NB_PATH; i++) {
-			sPathToLensDef = sAppDir + "/Resources/Common/" + sPluginPath[i] + "/FocuserPlugins/lens.txt";
+			sPathToLensDef = sAppDir + "/Resources/Common/" + sPluginPath[i] + "/FocuserPlugIns/lens.txt";
 #if defined EFCTL_DEBUG && EFCTL_DEBUG >= 2
             ltime = time(NULL);
             timestamp = asctime(localtime(&ltime));
@@ -467,13 +467,11 @@ int CEFLensController::loadLensDef()
             ltime = time(NULL);
             timestamp = asctime(localtime(&ltime));
             timestamp[strlen(timestamp) - 1] = 0;
-            fprintf(Logfile, "[%s] [CEFLensController::loadLensDef]  m_fLensDef.good() = d\n", timestamp,  m_fLensDef.good());
+            fprintf(Logfile, "[%s] [CEFLensController::loadLensDef]  m_fLensDef.good() = %d\n", timestamp,  m_fLensDef.good());
             fflush(Logfile);
 #endif
-            if(m_fLensDef.good()) {
-
+            if(m_fLensDef.good())
 				break;
-            }
 		}
 #endif
 		
