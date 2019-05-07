@@ -82,6 +82,7 @@ public:
     int         getPosition(int &nPosition);
     int         getPosLimit(void);
     void        setPosLimit(int nLimit);
+	void		setLastPos(int nPos);
     bool        isPosLimitEnabled(void);
     void        enablePosLimit(bool bEnable);
 
@@ -115,7 +116,8 @@ protected:
     int             m_nPosLimit;
     bool            m_bPosLimitEnabled;
     int             m_nCurrentApperture;
-	
+	int				m_nLastPos;
+
 	std::ifstream 	m_fLensDef;
 	std::vector<tLensDefnition>	m_LensDefinitions;
 	std::string&    trim(std::string &str, const std::string &filter );

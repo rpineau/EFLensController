@@ -41,7 +41,7 @@ class TickCountInterface;
 #define POS_LIMIT_ENABLED   "PosLimitEnable"
 #define LENS_NAME			"LensName"
 #define LENS_APERTURE		"LensAperture"
-
+#define LAST_POS			"LastLensPosition"
 
 #if defined(SB_WIN_BUILD)
 #define DEF_PORT_NAME					"COM1"

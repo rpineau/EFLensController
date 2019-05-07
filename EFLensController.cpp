@@ -20,7 +20,8 @@ CEFLensController::CEFLensController()
     m_nPosLimit = 0;
     m_bPosLimitEnabled = 0;
     m_nCurrentApperture = 0;
-    
+	m_nLastPos = 0;
+
 
 #ifdef EFCTL_DEBUG
 #if defined(SB_WIN_BUILD)
@@ -99,6 +100,7 @@ int CEFLensController::Connect(const char *pszPort)
 	fflush(Logfile);
 #endif
 	gotoPosition(0);
+	timeout = 0;
 	do {
 		m_pSleeper->sleep(100);
 		isGoToComplete(bGotoZeroDone);
@@ -109,7 +111,22 @@ int CEFLensController::Connect(const char *pszPort)
 			return ERR_COMMNOLINK;
 		}
 	} while(!bGotoZeroDone);
-	
+
+	if(m_nLastPos) {
+		gotoPosition(m_nLastPos);
+		timeout = 0;
+		do {
+			m_pSleeper->sleep(100);
+			isGoToComplete(bGotoZeroDone);
+			timeout++;
+			if( timeout > 15) {
+				m_pSerx->close();
+				m_bIsConnected = false;
+				return ERR_COMMNOLINK;
+			}
+		} while(!bGotoZeroDone);
+	}
+
 #ifdef EFCTL_DEBUG
 	ltime = time(NULL);
 	timestamp = asctime(localtime(&ltime));
@@ -233,6 +250,12 @@ void CEFLensController::setPosLimit(int nLimit)
 {
     m_nPosLimit = nLimit;
 }
+
+void CEFLensController::setLastPos(int nPos)
+{
+	m_nLastPos = nPos;
+}
+
 
 bool CEFLensController::isPosLimitEnabled()
 {

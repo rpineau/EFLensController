@@ -36,6 +36,7 @@ X2Focuser::X2Focuser(const char* pszDisplayName,
     if (m_pIniUtil) {
 		m_EFLensController.setPosLimit(m_pIniUtil->readInt(PARENT_KEY, POS_LIMIT, 9999));
 		m_EFLensController.enablePosLimit(m_pIniUtil->readInt(PARENT_KEY, POS_LIMIT_ENABLED, false));
+		m_EFLensController.setLastPos(m_pIniUtil->readInt(PARENT_KEY, LAST_POS, 0));
 		memset(m_szLensName, 0, 256);
 		memset(m_szLensAperture, 0, 256);
 		m_pIniUtil->readString(PARENT_KEY, LENS_NAME, "", m_szLensName, 256);
@@ -156,9 +157,14 @@ int	X2Focuser::establishLink(void)
 
 int	X2Focuser::terminateLink(void)
 {
+	int nErr;
+	int nPos = 0;
     if(!m_bLinked)
         return SB_OK;
 
+	nErr = m_EFLensController.getPosition(nPos);
+	if(!nErr && m_pIniUtil)
+		m_pIniUtil->writeInt(PARENT_KEY, LAST_POS, nPos);
     X2MutexLocker ml(GetMutex());
     m_EFLensController.Disconnect();
     m_bLinked = false;
