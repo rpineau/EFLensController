@@ -33,7 +33,7 @@ class MutexInterface;
 class BasicIniUtilInterface;
 class TickCountInterface;
 
-#define DRIVER_VERSION      1.0
+#define DRIVER_VERSION      1.1
 
 #define PARENT_KEY			"EFCTL"
 #define CHILD_KEY_PORTNAME	"PortName"
@@ -41,7 +41,8 @@ class TickCountInterface;
 #define POS_LIMIT_ENABLED   "PosLimitEnable"
 #define LENS_NAME			"LensName"
 #define LENS_APERTURE		"LensAperture"
-
+#define LAST_POS			"LastLensPosition"
+#define RETURN_TO_POS       "ReturnToSavePos"
 
 #if defined(SB_WIN_BUILD)
 #define DEF_PORT_NAME					"COM1"
@@ -141,7 +142,7 @@ public:
     virtual bool                                isBaudRateFixed() const		{return true;}
 
     virtual SerXInterface::Parity               parity() const				{return SerXInterface::B_NOPARITY;}
-    virtual void                                setParity(const SerXInterface::Parity& parity){parity;};
+    virtual void                                setParity(const SerXInterface::Parity& parity){};
     virtual bool                                isParityFixed() const		{return true;}
 
 
@@ -178,7 +179,7 @@ private:
 	int										m_nLensApertureIdx;
 	char 									m_szLensName[256];
 	char									m_szLensAperture[256];
-
+    bool                                    m_bReturntoSavedPos;
 };
 
 
