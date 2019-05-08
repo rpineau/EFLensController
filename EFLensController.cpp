@@ -21,7 +21,8 @@ CEFLensController::CEFLensController()
     m_bPosLimitEnabled = 0;
     m_nCurrentApperture = 0;
 	m_nLastPos = 0;
-
+    m_bReturntoLastPos = false;
+    
 
 #ifdef EFCTL_DEBUG
 #if defined(SB_WIN_BUILD)
@@ -42,7 +43,7 @@ CEFLensController::CEFLensController()
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
     timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [CEFLensController::CEFLensController] Version 2019_02_16_1200.\n", timestamp);
+    fprintf(Logfile, "[%s] [CEFLensController::CEFLensController] Version 2019_05_8_1140.\n", timestamp);
     fprintf(Logfile, "[%s] [CEFLensController::CEFLensController] Constructor Called.\n", timestamp);
     fflush(Logfile);
 #endif
@@ -102,28 +103,35 @@ int CEFLensController::Connect(const char *pszPort)
 	gotoPosition(0);
 	timeout = 0;
 	do {
+        if( timeout > 15) {
+            m_pSerx->close();
+            m_bIsConnected = false;
+            return ERR_COMMNOLINK;
+        }
 		m_pSleeper->sleep(100);
 		isGoToComplete(bGotoZeroDone);
 		timeout++;
-		if( timeout > 15) {
-			m_pSerx->close();
-			m_bIsConnected = false;
-			return ERR_COMMNOLINK;
-		}
 	} while(!bGotoZeroDone);
 
-	if(m_nLastPos) {
+	if(m_bReturntoLastPos && m_nLastPos) {
+#ifdef EFCTL_DEBUG
+        ltime = time(NULL);
+        timestamp = asctime(localtime(&ltime));
+        timestamp[strlen(timestamp) - 1] = 0;
+        fprintf(Logfile, "[%s] CEFLensController::Connect doing a goto to last position : %d\n", timestamp, m_nLastPos);
+        fflush(Logfile);
+#endif
 		gotoPosition(m_nLastPos);
 		timeout = 0;
 		do {
+            if( timeout > 15) {
+                m_pSerx->close();
+                m_bIsConnected = false;
+                return ERR_COMMNOLINK;
+            }
 			m_pSleeper->sleep(100);
 			isGoToComplete(bGotoZeroDone);
 			timeout++;
-			if( timeout > 15) {
-				m_pSerx->close();
-				m_bIsConnected = false;
-				return ERR_COMMNOLINK;
-			}
 		} while(!bGotoZeroDone);
 	}
 
@@ -246,14 +254,24 @@ int CEFLensController::getPosLimit()
     return m_nPosLimit;
 }
 
-void CEFLensController::setPosLimit(int nLimit)
+void CEFLensController::setPosLimit(const int &nLimit)
 {
     m_nPosLimit = nLimit;
 }
 
-void CEFLensController::setLastPos(int nPos)
+void CEFLensController::setLastPos(const bool &bReturntoLastPos, const int &nPos)
 {
+    m_bReturntoLastPos = bReturntoLastPos;
 	m_nLastPos = nPos;
+#ifdef EFCTL_DEBUG
+    ltime = time(NULL);
+    timestamp = asctime(localtime(&ltime));
+    timestamp[strlen(timestamp) - 1] = 0;
+    fprintf(Logfile, "[%s] CEFLensController::setLastPos m_bReturntoLastPos : %s\n", timestamp, m_bReturntoLastPos?"True":"False");
+    fprintf(Logfile, "[%s] CEFLensController::setLastPos m_nLastPos : %d\n", timestamp, m_nLastPos);
+    fflush(Logfile);
+#endif
+
 }
 
 

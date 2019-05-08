@@ -36,8 +36,10 @@ X2Focuser::X2Focuser(const char* pszDisplayName,
     if (m_pIniUtil) {
 		m_EFLensController.setPosLimit(m_pIniUtil->readInt(PARENT_KEY, POS_LIMIT, 9999));
 		m_EFLensController.enablePosLimit(m_pIniUtil->readInt(PARENT_KEY, POS_LIMIT_ENABLED, false));
-		m_EFLensController.setLastPos(m_pIniUtil->readInt(PARENT_KEY, LAST_POS, 0));
-		memset(m_szLensName, 0, 256);
+        m_bReturntoSavedPos =  m_pIniUtil->readInt(PARENT_KEY, RETURN_TO_POS, 0) == 0?false:true;
+		m_EFLensController.setLastPos(m_bReturntoSavedPos, m_pIniUtil->readInt(PARENT_KEY, LAST_POS, 0));
+
+        memset(m_szLensName, 0, 256);
 		memset(m_szLensAperture, 0, 256);
 		m_pIniUtil->readString(PARENT_KEY, LENS_NAME, "", m_szLensName, 256);
 		if(strlen(m_szLensName)) {
@@ -159,13 +161,17 @@ int	X2Focuser::terminateLink(void)
 {
 	int nErr;
 	int nPos = 0;
+
     if(!m_bLinked)
         return SB_OK;
 
-	nErr = m_EFLensController.getPosition(nPos);
-	if(!nErr && m_pIniUtil)
-		m_pIniUtil->writeInt(PARENT_KEY, LAST_POS, nPos);
     X2MutexLocker ml(GetMutex());
+
+	nErr = m_EFLensController.getPosition(nPos);
+    if(!nErr && m_pIniUtil) {
+		m_pIniUtil->writeInt(PARENT_KEY, LAST_POS, nPos);
+        m_EFLensController.setLastPos(m_bReturntoSavedPos, nPos);
+    }
     m_EFLensController.Disconnect();
     m_bLinked = false;
 
@@ -195,7 +201,7 @@ int	X2Focuser::execModalSettingsDialog(void)
 	tLensDefnition tLens;
 	int nLensIndex;
 	int nApertureIndex;
-
+    
     if (NULL == ui)
         return ERR_POINTER;
 
@@ -223,12 +229,10 @@ int	X2Focuser::execModalSettingsDialog(void)
 	dx->setCurrentIndex("comboBox_2", m_nLensApertureIdx);
 	
 	
-	// debug
-    if(m_bLinked) {
-    }
-    else {
-        // disable all controls
-    }
+    if(m_bReturntoSavedPos)
+        dx->setChecked("returnToPos", true);
+    else
+        dx->setChecked("returnToPos", false);
 
 	// limit is done in software so it's always enabled.
 	dx->setEnabled("posLimit", true);
@@ -239,7 +243,6 @@ int	X2Focuser::execModalSettingsDialog(void)
 	else
 		dx->setChecked("limitEnable", false);
 	
-
 	//Display the user interface
     if ((nErr = ui->exec(bPressedOK)))
         return nErr;
@@ -258,12 +261,14 @@ int	X2Focuser::execModalSettingsDialog(void)
 		m_nLensIdx = dx->currentIndex("comboBox");
 		m_nLensApertureIdx = dx->currentIndex("comboBox_2");
 		tLens = m_EFLensController.getLensDef(m_nLensIdx);
-
+        m_bReturntoSavedPos = dx->isChecked("returnToPos");
+        
 		// save values to config
 		nErr  = m_pIniUtil->writeString(PARENT_KEY, LENS_NAME, tLens.lensName.c_str());
 		nErr |= m_pIniUtil->writeString(PARENT_KEY, LENS_APERTURE, tLens.fRatios[m_nLensApertureIdx].c_str());
 		nErr |= m_pIniUtil->writeInt(PARENT_KEY, POS_LIMIT, nPosLimit);
-		nErr |= m_pIniUtil->writeInt(PARENT_KEY, POS_LIMIT_ENABLED, bLimitEnabled);
+        nErr |= m_pIniUtil->writeInt(PARENT_KEY, POS_LIMIT_ENABLED, bLimitEnabled?1:0);
+        nErr |= m_pIniUtil->writeInt(PARENT_KEY, RETURN_TO_POS, m_bReturntoSavedPos?1:0);
     }
 
 	m_EFLensController.setApperture(m_nLensApertureIdx);
