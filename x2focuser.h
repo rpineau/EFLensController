@@ -33,7 +33,7 @@ class MutexInterface;
 class BasicIniUtilInterface;
 class TickCountInterface;
 
-#define DRIVER_VERSION      1.1
+#define DRIVER_VERSION      1.2
 
 #define PARENT_KEY			"EFCTL"
 #define CHILD_KEY_PORTNAME	"PortName"
@@ -142,7 +142,7 @@ public:
     virtual bool                                isBaudRateFixed() const		{return true;}
 
     virtual SerXInterface::Parity               parity() const				{return SerXInterface::B_NOPARITY;}
-    virtual void                                setParity(const SerXInterface::Parity& parity){};
+	virtual void                                setParity(const SerXInterface::Parity& parity){};
     virtual bool                                isParityFixed() const		{return true;}
 
 
