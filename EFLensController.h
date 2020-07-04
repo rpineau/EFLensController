@@ -38,7 +38,9 @@
 #include "../../licensedinterfaces/sleeperinterface.h"
 #include "../../licensedinterfaces/theskyxfacadefordriversinterface.h"
 
-#define EFCTL_DEBUG 2
+// #define EFCTL_DEBUG 2
+
+#define PLUGIN_VERSION      1.3
 
 #define SERIAL_BUFFER_SIZE 256
 #define MAX_TIMEOUT 1000

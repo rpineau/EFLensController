@@ -43,7 +43,7 @@ CEFLensController::CEFLensController()
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
     timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [CEFLensController::CEFLensController] Version 2019_05_8_1140.\n", timestamp);
+    fprintf(Logfile, "[%s] [CEFLensController::CEFLensController] Version %3.2f build  2019_05_8_1140.\n", timestamp, PLUGIN_VERSION);
     fprintf(Logfile, "[%s] [CEFLensController::CEFLensController] Constructor Called.\n", timestamp);
     fflush(Logfile);
 #endif
@@ -324,15 +324,21 @@ int CEFLensController::getLensesCount()
 
 tLensDefnition CEFLensController::getLensDef(const int &nLensIdx)
 {
-	if(nLensIdx >= 0 && nLensIdx < m_LensDefinitions.size())
-		return m_LensDefinitions[nLensIdx];
-	else
-		return {};
+    if(getLensesCount()>nLensIdx) {
+        if(nLensIdx >= 0 && nLensIdx < m_LensDefinitions.size())
+            return m_LensDefinitions[nLensIdx];
+    }
+    return {};
+
 }
 
 int CEFLensController::getLensIdxFromName(const char *szLensName)
 {
 	int i;
+
+    if(getLensesCount()==0)
+        return 0;
+
 	for(i = 0; i < m_LensDefinitions.size(); i++) {
 		if(m_LensDefinitions[i].lensName == szLensName)
 			return i;
@@ -343,11 +349,17 @@ int CEFLensController::getLensIdxFromName(const char *szLensName)
 int CEFLensController::getLensApertureIdxFromName(const int nLensIdx, const char *szLensAperture)
 {
 	int i;
-	for(i = 0; i < m_LensDefinitions[nLensIdx].fRatios.size(); i++ ) {
-		if(m_LensDefinitions[nLensIdx].fRatios[i] == szLensAperture)
-			return i;
-	}
-	return 0;
+
+    if(getLensesCount()==0)
+        return 0;
+
+    if(getLensesCount()>nLensIdx) {
+        for(i = 0; i < m_LensDefinitions[nLensIdx].fRatios.size(); i++ ) {
+            if(m_LensDefinitions[nLensIdx].fRatios[i] == szLensAperture)
+                return i;
+        }
+    }
+    return 0;
 }
 
 
@@ -492,6 +504,11 @@ int CEFLensController::loadLensDef()
 			if(m_fLensDef.good())
 				break;
 		}
+#elif defined(SB_MAC_BUILD)
+    sPathToLensDef = sAppDir + "/PlugIns/FocuserPlugIns/lens.txt";
+    m_fLensDef.open(sPathToLensDef);
+    if(!m_fLensDef.good())
+        return ERR_OPENINGFILE;
 #else
 		for(i = 0; i < NB_PATH; i++) {
 			sPathToLensDef = sAppDir + "/Resources/Common/" + sPluginPath[i] + "/FocuserPlugIns/lens.txt";

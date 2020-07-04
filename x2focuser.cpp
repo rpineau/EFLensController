@@ -111,7 +111,7 @@ void X2Focuser::driverInfoDetailedInfo(BasicStringInterface& str) const
 
 double X2Focuser::driverInfoVersion(void) const							
 {
-	return DRIVER_VERSION;
+	return PLUGIN_VERSION;
 }
 
 void X2Focuser::deviceInfoNameShort(BasicStringInterface& str) const
