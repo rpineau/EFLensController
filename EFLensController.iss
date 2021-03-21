@@ -40,14 +40,22 @@ DirExistsWarning=no
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
+[Dirs]
+Name: "{app}\Plugins\FocuserPlugins";
+Name: "{app}\Plugins64\FocuserPlugins";
+
 [Files]
 ; WIll also need to customise these!
-Source: "focuserlist EFLensController.txt"; DestDir: "{app}\Miscellaneous Files"; Flags: ignoreversion
-Source: "lens.txt"; DestDir: "{app}\Plugins\FocuserPlugins"; Flags: ignoreversion
-Source: "libEFLensController\Release\libEFLensController.dll"; DestDir: "{app}\Plugins\FocuserPlugins"; Flags: ignoreversion
-Source: "EFLensController.ui"; DestDir: "{app}\Plugins\FocuserPlugins"; Flags: ignoreversion
-; NOTE: Don't use "Flags: ignoreversion" on any shared system files
-; msgBox('Do you want to install MyProg.exe to ' + ExtractFilePath(CurrentFileName) + '?', mbConfirmation, MB_YESNO)
+Source: "focuserlist EFLensController.txt";                             DestDir: "{app}\Miscellaneous Files"; Flags: ignoreversion
+Source: "focuserlist EFLensController.txt";                             DestDir: "{app}\Miscellaneous Files"; DestName: "focuserlist64 EFLensController.txt"; Flags: ignoreversion
+;32 bits
+Source: "lens.txt";                                                     DestDir: "{app}\Plugins\FocuserPlugins"; Flags: ignoreversion
+Source: "libEFLensController\Win32\Release\libEFLensController.dll";    DestDir: "{app}\Plugins\FocuserPlugins"; Flags: ignoreversion
+Source: "EFLensController.ui";                                          DestDir: "{app}\Plugins\FocuserPlugins"; Flags: ignoreversion
+; 64 bits
+Source: "lens.txt";                                                     DestDir: "{app}\Plugins64\FocuserPlugins"; Flags: ignoreversion; Check: DirExists(ExpandConstant('{app}\Plugins64\FocuserPlugins'))
+Source: "libEFLensController\x64\Release\libEFLensController.dll";      DestDir: "{app}\Plugins64\FocuserPlugins"; Flags: ignoreversion; Check: DirExists(ExpandConstant('{app}\Plugins64\FocuserPlugins'))
+Source: "EFLensController.ui";                                          DestDir: "{app}\Plugins64\FocuserPlugins"; Flags: ignoreversion; Check: DirExists(ExpandConstant('{app}\Plugins64\FocuserPlugins'))
 
 
 [Code]
