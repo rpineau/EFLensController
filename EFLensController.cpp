@@ -514,7 +514,7 @@ int CEFLensController::loadLensDef()
 	std::vector<std::string> lensEntry;
 	std::vector<std::string> lensFRatios;
 	tLensDefnition tLens;
-	
+
 	m_LensDefinitions.clear();
 	
 	sAppDir = GetAppDir();
@@ -527,7 +527,7 @@ int CEFLensController::loadLensDef()
 #endif
 
 #if defined(SB_WIN_BUILD)
-		for(i = 0; i < NB_PATH; i++) {
+		for(int i = 0; i < NB_PATH; i++) {
 			sPathToLensDef = sAppDir + "\\Resources\\Common\\" + sPluginPath[i] + "\\FocuserPlugIns\\lens.txt";
 			m_fLensDef.open(sPathToLensDef);
 			if(m_fLensDef.good())
@@ -539,7 +539,7 @@ int CEFLensController::loadLensDef()
     if(!m_fLensDef.good())
         return ERR_OPENINGFILE;
 #else
-		for(i = 0; i < NB_PATH; i++) {
+		for(int i = 0; i < NB_PATH; i++) {
 			sPathToLensDef = sAppDir + "/Resources/Common/" + sPluginPath[i] + "/FocuserPlugIns/lens.txt";
 			m_fLensDef.open(sPathToLensDef);
             if(m_fLensDef.good())
