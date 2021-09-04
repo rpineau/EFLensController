@@ -38,14 +38,22 @@
 #include "../../licensedinterfaces/sleeperinterface.h"
 #include "../../licensedinterfaces/theskyxfacadefordriversinterface.h"
 
-#define EFCTL_DEBUG 2
+#include "StopWatch.h"
+
+// #define PLUGIN_DEBUG 3
+
+#define PLUGIN_VERSION      1.5
 
 #define SERIAL_BUFFER_SIZE 256
-#define MAX_TIMEOUT 1000
 #define LOG_BUFFER_SIZE 256
 #define CMD_SIZE 5000
 
-enum EFCTL_Errors    {EFCTL_OK = 0, NOT_CONNECTED, ND_CANT_CONNECT, EFCTL_BAD_CMD_RESPONSE, COMMAND_FAILED};
+#define MAX_TIMEOUT 3000
+#define MAX_READ_WAIT_TIMEOUT 25
+#define INTER_COMMAND_WAIT    100    
+
+
+enum EFCTL_Errors    {PLUGIN_OK=0, NOT_CONNECTED, CANT_CONNECT, BAD_CMD_RESPONSE, COMMAND_FAILED, COMMAND_TIMEOUT};
 enum MotorDir       {NORMAL = 0 , REVERSE};
 enum MotorStatus    {IDLE = 0, MOVING};
 
@@ -77,6 +85,7 @@ public:
 
     // command complete functions
     int         isGoToComplete(bool &bComplete);
+    void        Abort();
 
     // getter and setter
     int         getPosition(int &nPosition);
@@ -96,20 +105,22 @@ public:
 	int getLensApertureIdxFromName(const int nLensIdx, const char *szLensAperture);
 
 protected:
+    int             EFCtlCommand(const std::string sCmd, std::string &sResp, bool bExpectResponse = true, int nTimeout = MAX_TIMEOUT);
+    int             readResponse(std::string &sResp, int nTimeout = MAX_TIMEOUT);
 
-    int             EFCtlCommand(const char *pszCmd, char *pszResult, int nResultMaxLen);
-    int             readResponse(char *pszRespBuffer, int nBufferLen);
-    int             parseFields(const char *pszIn, std::vector<std::string> &svFields, const char &cSeparator);
+    int             parseFields(const std::string sDataIn, std::vector<std::string> &svFields, const char &cSeparator);
 	std::string		GetAppDir(void);
 	
     SerXInterface   *m_pSerx;
 	SleeperInterface    *m_pSleeper;
 	TheSkyXFacadeForDriversInterface	*m_pTheSkyXForMounts;
-	
+    CStopWatch      m_cmdDelayTimer;
+
     bool            m_bDebugLog;
     bool            m_bIsConnected;
     char            m_szFirmwareVersion[SERIAL_BUFFER_SIZE];
     char            m_szLogBuffer[LOG_BUFFER_SIZE];
+    bool            m_bAborted;
 
     int             m_nCurPos;
     int             m_nTargetPos;
@@ -136,12 +147,11 @@ protected:
 	std::string sPluginPath[NB_PATH] = {"PlugIns","PlugIns64"};
 #endif
 	
-#ifdef EFCTL_DEBUG
-    std::string m_sLogfilePath;
+#ifdef PLUGIN_DEBUG
     // timestamp for logs
-    char *timestamp;
-    time_t ltime;
-    FILE *Logfile;      // LogFile
+    const std::string getTimeStamp();
+    std::ofstream m_sLogFile;
+    std::string m_sLogfilePath;
 #endif
 
 };

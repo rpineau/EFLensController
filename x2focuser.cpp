@@ -111,7 +111,7 @@ void X2Focuser::driverInfoDetailedInfo(BasicStringInterface& str) const
 
 double X2Focuser::driverInfoVersion(void) const							
 {
-	return DRIVER_VERSION;
+	return PLUGIN_VERSION;
 }
 
 void X2Focuser::deviceInfoNameShort(BasicStringInterface& str) const
@@ -339,8 +339,9 @@ int	X2Focuser::focMaximumLimit(int& nPosLimit)
 
 int	X2Focuser::focAbort()								
 {
-	return SB_OK;
-    // return ERR_COMMANDNOTSUPPORTED;
+    m_EFLensController.Abort();
+
+    return SB_OK;
 }
 
 int	X2Focuser::startFocGoto(const int& nRelativeOffset)	
