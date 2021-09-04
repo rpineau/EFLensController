@@ -14,6 +14,7 @@ CEFLensController::CEFLensController()
     m_pSerx = NULL;
     m_bDebugLog = false;
     m_bIsConnected = false;
+    m_bAborted = false;
 
     m_nCurPos = 0;
     m_nTargetPos = 0;
@@ -24,7 +25,7 @@ CEFLensController::CEFLensController()
     m_bReturntoLastPos = false;
     
 
-#ifdef EFCTL_DEBUG
+#ifdef PLUGIN_DEBUG
 #if defined(SB_WIN_BUILD)
     m_sLogfilePath = getenv("HOMEDRIVE");
     m_sLogfilePath += getenv("HOMEPATH");
@@ -36,43 +37,38 @@ CEFLensController::CEFLensController()
     m_sLogfilePath = getenv("HOME");
     m_sLogfilePath += "/EFLensControllerLog.txt";
 #endif
-    Logfile = fopen(m_sLogfilePath.c_str(), "w");
+    m_sLogFile.open(m_sLogfilePath, std::ios::out |std::ios::trunc);
 #endif
 
-#if defined EFCTL_DEBUG && EFCTL_DEBUG >= 2
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [CEFLensController::CEFLensController] Version %3.2f build  2019_05_8_1140.\n", timestamp, PLUGIN_VERSION);
-    fprintf(Logfile, "[%s] [CEFLensController::CEFLensController] Constructor Called.\n", timestamp);
-    fflush(Logfile);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [CEFLensController] Version " << std::fixed << std::setprecision(2) << PLUGIN_VERSION << " build  2019_05_8_1140." << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [CEFLensController] Constructor Called." << std::endl;
+    m_sLogFile.flush();
 #endif
 
 }
 
 CEFLensController::~CEFLensController()
 {
-#ifdef	EFCTL_DEBUG
+#ifdef    PLUGIN_DEBUG
     // Close LogFile
-    if (Logfile) fclose(Logfile);
+    if(m_sLogFile.is_open())
+        m_sLogFile.close();
 #endif
 }
 
 int CEFLensController::Connect(const char *pszPort)
 {
-    int nErr = EFCTL_OK;
+    int nErr = PLUGIN_OK;
 	bool bGotoZeroDone = false;
 	int timeout = 0;
 	
     if(!m_pSerx)
         return ERR_COMMNOLINK;
 
-#ifdef EFCTL_DEBUG
-	ltime = time(NULL);
-	timestamp = asctime(localtime(&ltime));
-	timestamp[strlen(timestamp) - 1] = 0;
-	fprintf(Logfile, "[%s] CEFLensController::Connect Called %s\n", timestamp, pszPort);
-	fflush(Logfile);
+#ifdef PLUGIN_DEBUG
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [Connect] Called with port " << pszPort << std::endl;
+    m_sLogFile.flush();
 #endif
 
 	nErr = m_pSerx->open(pszPort, 38400, SerXInterface::B_NOPARITY, "-DTR_CONTROL 1");
@@ -84,63 +80,54 @@ int CEFLensController::Connect(const char *pszPort)
     if(!m_bIsConnected)
         return nErr;
 
-#ifdef EFCTL_DEBUG
-	ltime = time(NULL);
-	timestamp = asctime(localtime(&ltime));
-	timestamp[strlen(timestamp) - 1] = 0;
-	fprintf(Logfile, "[%s] CEFLensController::Connect connected to %s\n", timestamp, pszPort);
-	fflush(Logfile);
+    m_pSerx->purgeTxRx();
+    m_cmdDelayTimer.Reset();
+
+#ifdef PLUGIN_DEBUG
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [Connect] connected to " << pszPort << std::endl;
+    m_sLogFile.flush();
 #endif
 	m_pSleeper->sleep(2000);
 
-#ifdef EFCTL_DEBUG
-	ltime = time(NULL);
-	timestamp = asctime(localtime(&ltime));
-	timestamp[strlen(timestamp) - 1] = 0;
-	fprintf(Logfile, "[%s] CEFLensController::Connect doing a goto 0\n", timestamp);
-	fflush(Logfile);
+#ifdef PLUGIN_DEBUG
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [Connect] doing a goto 0" << std::endl;
+    m_sLogFile.flush();
 #endif
 	gotoPosition(0);
 	timeout = 0;
 	do {
-        if( timeout > 15) {
+        if( timeout > MAX_TIMEOUT) {
             m_pSerx->close();
             m_bIsConnected = false;
             return ERR_COMMNOLINK;
         }
-		m_pSleeper->sleep(100);
+		m_pSleeper->sleep(MAX_READ_WAIT_TIMEOUT*5);
+        timeout += (MAX_READ_WAIT_TIMEOUT*5);
 		isGoToComplete(bGotoZeroDone);
-		timeout++;
 	} while(!bGotoZeroDone);
 
 	if(m_bReturntoLastPos && m_nLastPos) {
-#ifdef EFCTL_DEBUG
-        ltime = time(NULL);
-        timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(Logfile, "[%s] CEFLensController::Connect doing a goto to last position : %d\n", timestamp, m_nLastPos);
-        fflush(Logfile);
+#ifdef PLUGIN_DEBUG
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [Connect] doing a goto to last position : " << m_nLastPos << std::endl;
+        m_sLogFile.flush();
 #endif
 		gotoPosition(m_nLastPos);
 		timeout = 0;
 		do {
-            if( timeout > 15) {
+            if( timeout > MAX_TIMEOUT) {
                 m_pSerx->close();
                 m_bIsConnected = false;
                 return ERR_COMMNOLINK;
             }
-			m_pSleeper->sleep(100);
+            m_pSleeper->sleep(MAX_READ_WAIT_TIMEOUT*5);
+            timeout += (MAX_READ_WAIT_TIMEOUT*5);
 			isGoToComplete(bGotoZeroDone);
-			timeout++;
 		} while(!bGotoZeroDone);
 	}
 
-#ifdef EFCTL_DEBUG
-	ltime = time(NULL);
-	timestamp = asctime(localtime(&ltime));
-	timestamp[strlen(timestamp) - 1] = 0;
-	fprintf(Logfile, "[%s] CEFLensController::Connect setting apperture to %d\n", timestamp, m_nCurrentApperture);
-	fflush(Logfile);
+#ifdef PLUGIN_DEBUG
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [Connect]  setting apperture to  : " << m_nCurrentApperture << std::endl;
+    m_sLogFile.flush();
 #endif
 
 	setApperture(m_nCurrentApperture);
@@ -162,7 +149,8 @@ void CEFLensController::Disconnect()
 int CEFLensController::gotoPosition(int nPos)
 {
     int nErr;
-    char szCmd[SERIAL_BUFFER_SIZE];
+    std::stringstream ssTmp;
+    std::string sResp;
 
 	if(!m_bIsConnected)
 		return ERR_COMMNOLINK;
@@ -171,19 +159,17 @@ int CEFLensController::gotoPosition(int nPos)
     if (m_bPosLimitEnabled && nPos>m_nPosLimit)
         return ERR_LIMITSEXCEEDED;
 
-#ifdef EFCTL_DEBUG
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] CEFLensController::gotoPosition goto position  : %d\n", timestamp, nPos);
-    fflush(Logfile);
+#ifdef PLUGIN_DEBUG
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [gotoPosition] doing a goto to : " << nPos << std::endl;
+    m_sLogFile.flush();
 #endif
 
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, "M%d#", nPos);
-    nErr = EFCtlCommand(szCmd, NULL, SERIAL_BUFFER_SIZE);
+    ssTmp << "M" << nPos << "#";
+    nErr = EFCtlCommand(ssTmp.str(), sResp, false);
     if(nErr)
         return nErr;
     m_nTargetPos = nPos;
+    m_bAborted = false;
     return nErr;
 }
 
@@ -194,12 +180,9 @@ int CEFLensController::moveRelativeToPosision(int nSteps)
 	if(!m_bIsConnected)
 		return ERR_COMMNOLINK;
 
-#ifdef EFCTL_DEBUG
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] CEFLensController::gotoPosition goto relative position  : %d\n", timestamp, nSteps);
-    fflush(Logfile);
+#ifdef PLUGIN_DEBUG
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [moveRelativeToPosision] goto relative position : " << nSteps << std::endl;
+    m_sLogFile.flush();
 #endif
 
     m_nTargetPos = m_nCurPos + nSteps;
@@ -211,35 +194,47 @@ int CEFLensController::moveRelativeToPosision(int nSteps)
 
 int CEFLensController::isGoToComplete(bool &bComplete)
 {
-    int nErr = EFCTL_OK;
+    int nErr = PLUGIN_OK;
 	
 	if(!m_bIsConnected)
 		return ERR_COMMNOLINK;
+
+    if(m_bAborted) {
+        m_nTargetPos = m_nCurPos;
+        bComplete = true;
+        return nErr;
+    }
 
     getPosition(m_nCurPos);
     if(m_nCurPos == m_nTargetPos)
         bComplete = true;
     else
         bComplete = false;
+
     return nErr;
+}
+
+void CEFLensController::Abort()
+{
+    m_bAborted = true;
 }
 
 #pragma mark getters and setters
 int CEFLensController::getPosition(int &nPosition)
 {
-    int nErr = EFCTL_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
     std::vector<std::string> vFieldsData;
+    std::string sResp;
 
 	if(!m_bIsConnected)
 		return ERR_COMMNOLINK;
 
-    nErr = EFCtlCommand("P#", szResp, SERIAL_BUFFER_SIZE);
+    nErr = EFCtlCommand("P#", sResp);
     if(nErr)
         return nErr;
 
     // parse output to extract position value.
-    nErr = parseFields(szResp, vFieldsData, 'P');
+    nErr = parseFields(sResp, vFieldsData, 'P');
     // convert response
     if(vFieldsData.size()) {
         nPosition = std::stoi(vFieldsData[0]);
@@ -263,13 +258,10 @@ void CEFLensController::setLastPos(const bool &bReturntoLastPos, const int &nPos
 {
     m_bReturntoLastPos = bReturntoLastPos;
 	m_nLastPos = nPos;
-#ifdef EFCTL_DEBUG
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] CEFLensController::setLastPos m_bReturntoLastPos : %s\n", timestamp, m_bReturntoLastPos?"True":"False");
-    fprintf(Logfile, "[%s] CEFLensController::setLastPos m_nLastPos : %d\n", timestamp, m_nLastPos);
-    fflush(Logfile);
+#ifdef PLUGIN_DEBUG
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setLastPos] m_bReturntoLastPos : " << (m_bReturntoLastPos?"True":"False") << std::endl;
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setLastPos] m_nLastPos         : " << m_nLastPos << std::endl;
+    m_sLogFile.flush();
 #endif
 
 }
@@ -289,7 +281,8 @@ void CEFLensController::enablePosLimit(bool bEnable)
 int CEFLensController::setApperture(int &nAppeture)
 {
     int nErr;
-    char szCmd[SERIAL_BUFFER_SIZE];
+    std::stringstream ssTmp;
+    std::string sResp;
 
 	m_nCurrentApperture = nAppeture;
 
@@ -297,16 +290,13 @@ int CEFLensController::setApperture(int &nAppeture)
         return ERR_COMMNOLINK;
 
 
-#ifdef EFCTL_DEBUG
-    ltime = time(NULL);
-    timestamp = asctime(localtime(&ltime));
-    timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] CEFLensController::setApperture new apperture  : %d\n", timestamp, nAppeture);
-    fflush(Logfile);
+#ifdef PLUGIN_DEBUG
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [setApperture] new apperture : " << nAppeture << std::endl;
+    m_sLogFile.flush();
 #endif
 
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, "A%d#", nAppeture);
-    nErr = EFCtlCommand(szCmd, NULL, SERIAL_BUFFER_SIZE);
+    ssTmp << "A" << nAppeture <<"#";
+    nErr = EFCtlCommand(ssTmp.str(), sResp, false);
     if(nErr)
         return nErr;
     return nErr;
@@ -365,100 +355,143 @@ int CEFLensController::getLensApertureIdxFromName(const int nLensIdx, const char
 
 #pragma mark command and response functions
 
-int CEFLensController::EFCtlCommand(const char *pszszCmd, char *pszResult, int nResultMaxLen)
+int CEFLensController::EFCtlCommand(const std::string sCmd, std::string &sResp, bool bExpectResponse, int nTimeout)
 {
-    int nErr = EFCTL_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
+    int nErr = PLUGIN_OK;
     unsigned long  ulBytesWrite;
-	
-	if(!m_bIsConnected)
-		return ERR_COMMNOLINK;
+    std::string localResp;
+    int dDelayMs;
+
+    if(!m_bIsConnected)
+        return ERR_COMMNOLINK;
+
+    // do we need to wait ?
+    if(m_cmdDelayTimer.GetElapsedSeconds()<INTER_COMMAND_WAIT) {
+        dDelayMs = INTER_COMMAND_WAIT - int(m_cmdDelayTimer.GetElapsedSeconds() *1000);
+        if(dDelayMs>0)
+            m_pSleeper->sleep(dDelayMs);
+    }
 
     m_pSerx->purgeTxRx();
-#ifdef EFCTL_DEBUG
-	ltime = time(NULL);
-	timestamp = asctime(localtime(&ltime));
-	timestamp[strlen(timestamp) - 1] = 0;
-	fprintf(Logfile, "[%s] CEFLensController::EFCtlCommand Sending %s\n", timestamp, pszszCmd);
-	fflush(Logfile);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [EFCtlCommand] Sending : " << sCmd << std::endl;
+    m_sLogFile.flush();
 #endif
-    nErr = m_pSerx->writeFile((void *)pszszCmd, strlen(pszszCmd), ulBytesWrite);
+    nErr = m_pSerx->writeFile((void *)(sCmd.c_str()), sCmd.size(), ulBytesWrite);
+    m_cmdDelayTimer.Reset();
     m_pSerx->flushTx();
 
     if(nErr){
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [EFCtlCommand] writeFile error : " << nErr << std::endl;
+        m_sLogFile.flush();
+#endif
         return nErr;
     }
 
-    if(pszResult) {
-        // read response
-        nErr = readResponse(szResp, SERIAL_BUFFER_SIZE);
-#ifdef EFCTL_DEBUG
-		ltime = time(NULL);
-		timestamp = asctime(localtime(&ltime));
-		timestamp[strlen(timestamp) - 1] = 0;
-		fprintf(Logfile, "[%s] CEFLensController::EFCtlCommand response \"%s\"\n", timestamp, szResp);
-		fflush(Logfile);
+    if(!bExpectResponse) {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [EFCtlCommand] no response expected. Done." << std::endl;
+        m_sLogFile.flush();
 #endif
-        // printf("Got response : %s\n",resp);
-        strncpy(pszResult, szResp, nResultMaxLen);
-#ifdef EFCTL_DEBUG
-		ltime = time(NULL);
-		timestamp = asctime(localtime(&ltime));
-		timestamp[strlen(timestamp) - 1] = 0;
-		fprintf(Logfile, "[%s] CEFLensController::EFCtlCommand response copied to pszResult : \"%s\"\n", timestamp, pszResult);
-		fflush(Logfile);
-#endif
+        return nErr;
     }
+    // read response
+    nErr = readResponse(sResp, nTimeout);
+    if(nErr)
+        return nErr;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [EFCtlCommand] response : " << sResp << std::endl;
+    m_sLogFile.flush();
+#endif
+
     return nErr;
 }
 
-int CEFLensController::readResponse(char *pszRespBuffer, int nBufferLen)
+int CEFLensController::readResponse(std::string &sResp, int nTimeout)
 {
-    int nErr = EFCTL_OK;
+    int nErr = PLUGIN_OK;
+    char pszBuf[SERIAL_BUFFER_SIZE];
     unsigned long ulBytesRead = 0;
     unsigned long ulTotalBytesRead = 0;
     char *pszBufPtr;
-	
-	if(!m_bIsConnected)
-		return ERR_COMMNOLINK;
+    int nBytesWaiting = 0 ;
+    int nbTimeouts = 0;
 
-    memset(pszRespBuffer, 0, (size_t) nBufferLen);
-    pszBufPtr = pszRespBuffer;
+    sResp.clear();
+    memset(pszBuf, 0, SERIAL_BUFFER_SIZE);
+    pszBufPtr = pszBuf;
 
     do {
-        nErr = m_pSerx->readFile(pszBufPtr, 1, ulBytesRead, MAX_TIMEOUT);
+        nErr = m_pSerx->bytesWaitingRx(nBytesWaiting);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 3
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [readResponse] nBytesWaiting = " << nBytesWaiting << std::endl;
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [readResponse] nBytesWaiting nErr = " << nErr << std::endl;
+        m_sLogFile.flush();
+#endif
+        if(!nBytesWaiting) {
+            nbTimeouts += MAX_READ_WAIT_TIMEOUT;
+            if(nbTimeouts >= nTimeout) {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 3
+                m_sLogFile << "["<<getTimeStamp()<<"]"<< " [readResponse] bytesWaitingRx timeout, no data for" << nbTimeouts <<" ms" << std::endl;
+                m_sLogFile.flush();
+#endif
+                nErr = COMMAND_TIMEOUT;
+                break;
+            }
+            m_pSleeper->sleep(MAX_READ_WAIT_TIMEOUT);
+            continue;
+        }
+        nbTimeouts = 0;
+        if(ulTotalBytesRead + nBytesWaiting <= SERIAL_BUFFER_SIZE)
+            nErr = m_pSerx->readFile(pszBufPtr, nBytesWaiting, ulBytesRead, nTimeout);
+        else {
+            nErr = ERR_RXTIMEOUT;
+            break; // buffer is full.. there is a problem !!
+        }
         if(nErr) {
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+            m_sLogFile << "["<<getTimeStamp()<<"]"<< " [readResponse] readFile error." << std::endl;
+            m_sLogFile.flush();
+#endif
             return nErr;
         }
 
-        if (ulBytesRead !=1) {// timeout
-#ifdef EFCTL_DEBUG
-			ltime = time(NULL);
-			timestamp = asctime(localtime(&ltime));
-			timestamp[strlen(timestamp) - 1] = 0;
-			fprintf(Logfile, "[%s] CEFLensController::readResponse timeout\n", timestamp);
-			fflush(Logfile);
+        if (ulBytesRead != nBytesWaiting) { // timeout
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+            m_sLogFile << "["<<getTimeStamp()<<"]"<< " [readResponse] readFile Timeout Error." << std::endl;
+            m_sLogFile << "["<<getTimeStamp()<<"]"<< " [readResponse] readFile nBytesWaiting = " << nBytesWaiting << std::endl;
+            m_sLogFile << "["<<getTimeStamp()<<"]"<< " [readResponse] readFile ulBytesRead =" << ulBytesRead << std::endl;
+            m_sLogFile.flush();
 #endif
-            nErr = ERR_NORESPONSE;
-            break;
         }
-        ulTotalBytesRead += ulBytesRead;
-    } while (*pszBufPtr++ != '#' && ulTotalBytesRead < nBufferLen );
 
-    if(ulTotalBytesRead)
+        ulTotalBytesRead += ulBytesRead;
+        pszBufPtr+=ulBytesRead;
+    } while (ulTotalBytesRead < SERIAL_BUFFER_SIZE  && *(pszBufPtr-1) != '#');
+
+    if(!ulTotalBytesRead)
+        nErr = COMMAND_TIMEOUT; // we didn't get an answer.. so timeout
+    else
         *(pszBufPtr-1) = 0; //remove the #
 
+    sResp.assign(pszBuf);
     return nErr;
 }
 
 
-int CEFLensController::parseFields(const char *pszIn, std::vector<std::string> &svFields, const char &cSeparator)
+int CEFLensController::parseFields(const std::string sDataIn, std::vector<std::string> &svFields, const char &cSeparator)
 {
-    int nErr = EFCTL_OK;
+    int nErr = PLUGIN_OK;
     std::string sSegment;
-    std::stringstream ssTmp(pszIn);
+    std::stringstream ssTmp(sDataIn);
 
     svFields.clear();
+
+    if(sDataIn.size()==0)
+        return nErr;
+
     // split the string into vector elements
     while(std::getline(ssTmp, sSegment, cSeparator))
     {
@@ -474,8 +507,7 @@ int CEFLensController::parseFields(const char *pszIn, std::vector<std::string> &
 
 int CEFLensController::loadLensDef()
 {
-	int nErr = EFCTL_OK;
-	int i;
+	int nErr = PLUGIN_OK;
 	std::string line;
 	std::string sAppDir;
 	std::string sPathToLensDef;
@@ -489,12 +521,9 @@ int CEFLensController::loadLensDef()
 	if(!sAppDir.size())
 		return ERR_PATHNOTFOUND;
 	
-#if defined EFCTL_DEBUG && EFCTL_DEBUG >= 2
-	ltime = time(NULL);
-	timestamp = asctime(localtime(&ltime));
-	timestamp[strlen(timestamp) - 1] = 0;
-	fprintf(Logfile, "[%s] [CEFLensController::loadLensDef] loading lens definition.\n", timestamp);
-	fflush(Logfile);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [loadLensDef] loading lens definition." << std::endl;
+    m_sLogFile.flush();
 #endif
 
 #if defined(SB_WIN_BUILD)
@@ -518,22 +547,16 @@ int CEFLensController::loadLensDef()
 		}
 #endif
 		
-#if defined EFCTL_DEBUG && EFCTL_DEBUG >= 2
-		ltime = time(NULL);
-		timestamp = asctime(localtime(&ltime));
-		timestamp[strlen(timestamp) - 1] = 0;
-		fprintf(Logfile, "[%s] [CEFLensController::loadLensDef] sPathToLensDef = '%s'\n", timestamp, sPathToLensDef.c_str());
-		fflush(Logfile);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [loadLensDef] sPathToLensDef : " << sPathToLensDef << std::endl;
+    m_sLogFile.flush();
 #endif
 	
 
 	if(!m_fLensDef.is_open()) {
-#if defined EFCTL_DEBUG && EFCTL_DEBUG >= 2
-		ltime = time(NULL);
-		timestamp = asctime(localtime(&ltime));
-		timestamp[strlen(timestamp) - 1] = 0;
-		fprintf(Logfile, "[%s] [CEFLensController::loadLensDef] ERROR lens definition file not found.\n", timestamp);
-		fflush(Logfile);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        m_sLogFile << "["<<getTimeStamp()<<"]"<< " [loadLensDef] ERROR lens definition file not found." << std::endl;
+        m_sLogFile.flush();
 #endif
 		return ERR_OPENINGFILE;
 	}
@@ -596,12 +619,9 @@ std::string CEFLensController::GetAppDir(void)
 		fTmp.close();
 	}
 
-#if defined EFCTL_DEBUG && EFCTL_DEBUG >= 2
-	ltime = time(NULL);
-	timestamp = asctime(localtime(&ltime));
-	timestamp[strlen(timestamp) - 1] = 0;
-	fprintf(Logfile, "[%s] [CEFLensController::GetAppDir] AppDir = %s\n", timestamp, AppDir.c_str());
-	fflush(Logfile);
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    m_sLogFile << "["<<getTimeStamp()<<"]"<< " [GetAppDir] AppDir =" << AppDir << std::endl;
+    m_sLogFile.flush();
 #endif
 	return AppDir;
 }
@@ -622,3 +642,16 @@ std::string& CEFLensController::rtrim(std::string& str, const std::string& filte
 	str.erase(str.find_last_not_of(filter) + 1);
 	return str;
 }
+
+#ifdef PLUGIN_DEBUG
+const std::string CEFLensController::getTimeStamp()
+{
+    time_t     now = time(0);
+    struct tm  tstruct;
+    char       buf[80];
+    tstruct = *localtime(&now);
+    std::strftime(buf, sizeof(buf), "%Y-%m-%d.%X", &tstruct);
+
+    return buf;
+}
+#endif
